@@ -1,5 +1,4 @@
 #include "world/WorldManager.h"
-#include "utilities/standard.h"
 #include <queue>
 
 Vec3 WorldManager::worldToChunkPosition(const Vec3& worldPosition) const {
@@ -35,24 +34,29 @@ bool WorldManager::chunkInCache(const Vec3& chunkPosition) {
 // Voxel operations
 bool WorldManager::addVoxel(const Vec3& worldPosition, const Voxel& voxel) {
     auto chunk = getChunkAt(worldToChunkPosition(worldPosition));
-    if (chunk == nullptr) return false; // Chunk is not in cache
-    if (chunk->getVoxelAt(worldPosition) != nullptr) return false; // the position is occupied
+    if (chunk == nullptr) return false;                         // Chunk is not in cache
+    if (chunk->voxelExistsAt(worldPosition)) return false;      // the position is occupied
     chunk->addVoxel(worldPosition, voxel);
     return true;
 }
 
 bool WorldManager::removeVoxel(const Vec3& worldPosition) {
     auto chunk = getChunkAt(worldToChunkPosition(worldPosition));
-    if (chunk == nullptr) return false; // Chunk is not in cache
-    if (chunk->getVoxelAt(worldPosition) == nullptr) return false; // there is no voxel to be removed
+    if (chunk == nullptr) return false;                     // Chunk is not in cache
+    if (!chunk->voxelExistsAt(worldPosition)) return false; // there is no voxel to be removed
     chunk->removeVoxel(worldPosition);
     
     // Update isDirty flag for potential neighbor chunks
-    for (int i = 0; i < 6; i++) {
-        Vec3 neighborChunkPos = worldToChunkPosition(worldPosition + cubeNormals[i]);
-        if (neighborChunkPos != worldToChunkPosition(chunk->worldPosition)) {
-            if (chunkInCache(neighborChunkPos)) {
-                getChunkAt(neighborChunkPos)->isDirty = true;
+    Vec3 localVoxelPos = worldPosition - chunk->worldPosition;
+    if (localVoxelPos.x == 0 || localVoxelPos.x == chunkSize - 1 ||
+        localVoxelPos.y == 0 || localVoxelPos.y == chunkSize - 1 ||
+        localVoxelPos.z == 0 || localVoxelPos.z == chunkSize - 1) {
+        for (int i = 0; i < 6; i++) {
+            Vec3 neighborChunkPos = worldToChunkPosition(worldPosition + cubeNormals[i]);
+            if (neighborChunkPos != worldToChunkPosition(chunk->worldPosition)) {
+                if (chunkInCache(neighborChunkPos)) {
+                    getChunkAt(neighborChunkPos)->isDirty = true;
+                }
             }
         }
     }
@@ -82,20 +86,23 @@ bool WorldManager::getFirstVoxelCollision(const Vec3& startPoint, const Vec3& en
     float rayLength = length(endPoint - startPoint);
     
     Vec3 normal;
-    float tEntry, tExit;
+    float tEntry, tEntryNext, tExit;
 
     // get all chunks that collide with the ray sorted by entry times
     Vec3 chunkPos = worldToChunkPosition(startPoint);
     std::queue<std::shared_ptr<Chunk>> chunksToCheck;
     while (tEntry <= rayLength) {
         chunksToCheck.push(getChunkAt(chunkPos));
+
         Vec3 step = sign(rayDir);
         if (step.x == 0) step.x = 1; if (step.y == 0) step.y = 1; if (step.z == 0) step.z = 1;
+
         auto chunkX = getChunkAt(chunkPos + Vec3(step.x, 0, 0));
         auto chunkY = getChunkAt(chunkPos + Vec3(0, step.y, 0));
         auto chunkZ = getChunkAt(chunkPos + Vec3(0, 0, step.z));
 
-        float tEntryNext;
+        if (!chunkX || !chunkY || !chunkZ) break;
+
         if (AABBrayDetection(rayPos, rayDir, chunkX->box, normal, tEntryNext, tExit)) {
             chunkPos = worldToChunkPosition(chunkX->worldPosition);
         } else if (AABBrayDetection(rayPos, rayDir, chunkY->box, normal, tEntryNext, tExit)) {
@@ -118,8 +125,11 @@ bool WorldManager::getFirstVoxelCollision(const Vec3& startPoint, const Vec3& en
         auto chunk = chunksToCheck.front();
         chunksToCheck.pop();
 
+        if (chunk == nullptr) continue;
+
+        Vec3 chunkWorldPos = chunk->worldPosition;
         for (auto [index, voxel] : chunk->activeVoxels) {
-            Vec3 pos = chunk->worldPosition + chunk->indexToPosition(index);
+            Vec3 pos = chunkWorldPos + chunk->indexToPosition(index);
             
             AABB box = { pos, pos + Vec3(1, 1, 1) };
             if (AABBrayDetection(startPoint, rayDir, box, normal, tEntry, tExit)) {

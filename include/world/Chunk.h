@@ -27,6 +27,8 @@ public:
         box.min = worldPosition;
         box.max = worldPosition + (Vec3(1, 1, 1) * chunkSize);
     }
+
+    ~Chunk() {}
     
     void addVoxel(const Vec3& worldPosition, const Voxel& voxel);
 

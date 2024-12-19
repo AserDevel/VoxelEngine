@@ -1,4 +1,4 @@
-#include "world/PerlinNoise.h"
+#include "utilities/PerlinNoise.h"
 
 // Default constructor initializes with a random seed
 PerlinNoise::PerlinNoise() {

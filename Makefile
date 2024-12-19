@@ -16,6 +16,7 @@ RENDERING_DIR = $(SRC_DIR)/rendering
 PHYSICS_DIR = $(SRC_DIR)/physics
 GAMEPLAY_DIR = $(SRC_DIR)/gameplay
 WORLD_DIR = $(SRC_DIR)/world
+UTILITIES_DIR = $(SRC_DIR)/utilities
 TEST_DIR = tests
 
 # Source files
@@ -24,7 +25,8 @@ RENDERING_SRC = $(wildcard $(RENDERING_DIR)/*.cpp)
 PHYSICS_SRC = $(wildcard $(PHYSICS_DIR)/*.cpp)
 GAMEPLAY_SRC = $(wildcard $(GAMEPLAY_DIR)/*.cpp)
 WORLD_SRC = $(wildcard $(WORLD_DIR)/*.cpp)
-SRC = $(GLAD_SRC) $(RENDERING_SRC) $(PHYSICS_SRC) $(GAMEPLAY_SRC) $(WORLD_SRC)
+UTILITIES_SRC = $(wildcard $(UTILITIES_DIR)/*.cpp)
+SRC = $(GLAD_SRC) $(RENDERING_SRC) $(PHYSICS_SRC) $(GAMEPLAY_SRC) $(WORLD_SRC) $(UTILITIES_SRC)
 
 # Object files
 OBJ = $(patsubst $(SRC_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRC)))

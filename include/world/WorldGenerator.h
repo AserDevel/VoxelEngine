@@ -1,8 +1,8 @@
 #pragma once
 
 #include "WorldManager.h"
-#include "PerlinNoise.h"
-#include "world/ThreadManager.h"
+#include "utilities/PerlinNoise.h"
+#include "utilities/ThreadManager.h"
 
 class WorldGenerator {
 public:
@@ -12,7 +12,7 @@ public:
 
     void setUpdateDistance(int updateDistance) { this->updateDistance = updateDistance; }
 
-    void updateChunks(Vec3 centerChunk);
+    void updateChunks(Vec3 centerWorldPosition);
 
 private:
     int updateDistance = 4;
@@ -22,5 +22,5 @@ private:
     WorldManager& worldManager;
     ThreadManager& threadManager;
 
-    void generateChunk(std::shared_ptr<Chunk> chunk, Vec3 worldPosition);
+    void generateChunk(std::shared_ptr<Chunk> chunk);
 };

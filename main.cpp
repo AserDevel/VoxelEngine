@@ -114,7 +114,7 @@ int main(int argc, char* argv[]) {
     WorldGenerator worldGenerator(worldManager, threadManager);
     Renderer renderer(worldManager, threadManager);
 
-    worldGenerator.setUpdateDistance(12);
+    worldGenerator.setUpdateDistance(13);
     renderer.setRenderDistance(12);
 
     float lastFrameTime = SDL_GetTicks() / 1000.0f;
@@ -154,7 +154,7 @@ int main(int argc, char* argv[]) {
         glDepthRange(0.1f, 10.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
-        worldGenerator.updateChunks(worldManager.worldToChunkPosition(camera.position));
+        worldGenerator.updateChunks(camera.position);
         renderer.render(camera);
 
         SDL_GL_SwapWindow(window);

@@ -1,26 +1,37 @@
 #include "rendering/Renderer.h"
 
 void Renderer::render(Camera& camera) {
-    chunks.clear();
-
     Vec3 centerChunk = worldManager.worldToChunkPosition(camera.position);
     
     for (int x = -renderDistance; x <= renderDistance; x++) {
         for (int y = -renderDistance; y <= renderDistance; y++) {
             for (int z = -renderDistance; z <= renderDistance; z++) {
-                if (worldManager.chunkInCache(centerChunk + Vec3(x, y, z))) {
-                    auto chunk = worldManager.getChunkAt(centerChunk + Vec3(x, y, z));
+                
+                Vec3 chunkPosition = centerChunk + Vec3(x, y, z);            
+                if (worldManager.chunkInCache(chunkPosition)) {
+                    
+                    Vec3 chunkWorldCenter = chunkPosition * worldManager.getChunkSize() + Vec3(worldManager.getChunkSize() / 2.0f);
+                    float distance = length(chunkWorldCenter - camera.position);
+                    if (distance > renderDistance * worldManager.getChunkSize()) {
+                        continue;
+                    } 
 
-                    if (chunk->state == ChunkState::PENDING) {
+                    auto chunk = worldManager.getChunkAt(chunkPosition);
+                    if (chunk->state == ChunkState::PENDING || !neighboursReady(chunkPosition)) {
                         continue;
                     }
 
+                    // Mesh all chunks that are either dirty or newly generated and ready for meshing
                     if (chunk->state == ChunkState::READY) {
                         chunk->state = ChunkState::PENDING;
                         threadManager.addTask([this, chunk]() {
                             generateChunkMesh(chunk);
                         });
                         continue;
+                    }
+
+                    if (chunk->isDirty) {
+                        generateChunkMesh(chunk);
                     }
 
                     if (chunk->state == ChunkState::MESHED) {
@@ -48,23 +59,45 @@ void Renderer::render(Camera& camera) {
         chunk->mesh.bind();
         chunk->mesh.draw();
     }
+
+    chunks.clear();
+}
+
+bool Renderer::neighboursReady(Vec3 chunkPosition) {
+    int dependencyCount = 6;
+    for (int i = 0; i < 6; i++) {
+        Vec3 neighborChunkPos = chunkPosition + cubeNormals[i];
+        if (worldManager.chunkInCache(chunkPosition)) {
+            if (worldManager.getChunkAt(chunkPosition)->state != ChunkState::PENDING) {
+                dependencyCount--;
+            }
+        }
+    }
+    return dependencyCount == 0;
 }
 
 void Renderer::generateChunkMesh(std::shared_ptr<Chunk> chunk) {
     chunk->mesh.vertices.clear();
     chunk->mesh.indices.clear();    
 
+    int chunkSize = worldManager.getChunkSize();
     for (const auto& [index, voxel] : chunk->activeVoxels) {
         Vec3 localPosition = chunk->indexToPosition(index); 
+        bool isEdge = (localPosition.x == 0 || localPosition.x == chunkSize - 1 ||
+                    localPosition.y == 0 || localPosition.y == chunkSize - 1 ||
+                    localPosition.z == 0 || localPosition.z == chunkSize - 1);
         // For each face of the cube
         for (int i = 0; i < 6; i++) {
             Vec3 neighborPos = localPosition + cubeNormals[i];
 
-            // the face is an edge if the neighbor is out of bounds and empty/transparent
-            bool isEdge = !chunk->positionInBounds(neighborPos) && 
-                        !worldManager.voxelExistsAt(chunk->worldPosition + neighborPos);
-
-            if (chunk->positionIsTransparent(neighborPos) || isEdge) {
+            bool isVisible = false;
+            if (isEdge) {
+                isVisible = !worldManager.voxelExistsAt(chunk->worldPosition + neighborPos);
+            } else {
+                isVisible = chunk->positionIsTransparent(neighborPos);
+            }
+                    
+            if (isVisible) {
                 // Transform face vertices to world coordinates
                 for (int v = 0; v < 4; v++) {
                     Vertex vertex = cubeVertices[i][v];

@@ -2,7 +2,7 @@
 
 #include "utilities/standard.h"
 #include "world/WorldManager.h"
-#include "world/ThreadManager.h"
+#include "utilities/ThreadManager.h"
 #include "Camera.h"
 #include "Shader.h"
 
@@ -30,4 +30,5 @@ public:
 private:
     void generateChunkMesh(std::shared_ptr<Chunk> chunk);
 
+    bool neighboursReady(Vec3 chunkPosition);
 };
