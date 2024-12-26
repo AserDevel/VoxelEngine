@@ -10,6 +10,12 @@ inline float clamp(float target, float min, float max) {
     return target;
 }
 
+inline int clamp(int target, int min, int max) {
+    if (target < min) target = min;
+    if (target > max) target = max;
+    return target;
+}
+
 inline float toRad(const float degrees) {
     return degrees / (180 / PI); 
 }

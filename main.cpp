@@ -59,8 +59,6 @@ bool initializeWindow(SDL_Window** window, SDL_GLContext* context) {
 
     glViewport(0, 0, WINDOW_SIZE*ASPECT_RATIO, WINDOW_SIZE);
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     std::cout << "OpenGL Version: " << glGetString(GL_VERSION) << std::endl;
     return true;
@@ -68,7 +66,7 @@ bool initializeWindow(SDL_Window** window, SDL_GLContext* context) {
 
 void processKeyStates(float deltaTime, Camera& camera) {
     const Uint8* state = SDL_GetKeyboardState(NULL);
-    float speed = 5.0f;
+    float speed = 10.0f;
     if (state[SDL_SCANCODE_LCTRL])
         speed *= 2;
     if (state[SDL_SCANCODE_W]) 
@@ -137,17 +135,19 @@ int main(int argc, char* argv[]) {
                 if (event.button.button == SDL_BUTTON_LEFT) {                    
                     Vec3 startPoint = camera.position;
                     Vec3 endPoint = camera.position - camera.front * 4;
-                    Vec3 collisionPos;
-                    if (worldManager.getFirstVoxelCollision(startPoint, endPoint, collisionPos)) {
-                        worldManager.removeVoxel(collisionPos);
+                    Vec3 voxelPos;
+                    Vec3 normal;
+                    if (worldManager.worldRayDetection(startPoint, endPoint, voxelPos, normal)) {
+                        worldManager.removeVoxel(voxelPos);
+
                     }
                 } else if (event.button.button == SDL_BUTTON_RIGHT) {
                     Vec3 startPoint = camera.position;
                     Vec3 endPoint = camera.position - camera.front * 4;
-                    Vec3 collisionPos;
-                    if (worldManager.getFirstVoxelCollision(startPoint, endPoint, collisionPos)) {
-                        collisionPos.y++;
-                        worldManager.addVoxel(collisionPos, {0,0});
+                    Vec3 voxelPos;
+                    Vec3 normal;
+                    if (worldManager.worldRayDetection(startPoint, endPoint, voxelPos, normal)) {
+                        worldManager.addVoxel(voxelPos + normal, {1,0});
                     }
                 }
                 break;
@@ -155,7 +155,7 @@ int main(int argc, char* argv[]) {
                 break;
             }
         }
-
+        
         processKeyStates(deltaTime, camera);
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);

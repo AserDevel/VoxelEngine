@@ -1,17 +1,19 @@
 #include "world/WorldGenerator.h"
 
-void WorldGenerator::updateChunks(Vec3 centerWorldPosition) {
+void WorldGenerator::updateChunks(Vec3 worldCenter) {
 
-    Vec3 centerChunkPosition = worldManager.worldToChunkPosition(centerWorldPosition);
+    Vec3 centerChunkPosition = worldManager.worldToChunkPosition(worldCenter);
 
     for (int x = -updateDistance; x <= updateDistance; x++) {
         for (int y = -updateDistance; y <= updateDistance; y++) {
             for (int z = -updateDistance; z <= updateDistance; z++) {
                 Vec3 chunkPosition = centerChunkPosition + Vec3(x, y, z);
 
-                Vec3 chunkWorldCenter = chunkPosition * worldManager.getChunkSize() + Vec3(worldManager.getChunkSize() / 2.0f);
-                float distance = length(chunkWorldCenter - centerWorldPosition);
-                if (distance > updateDistance * worldManager.getChunkSize()) {
+                Vec2 worldCenter2D = Vec2(worldCenter.x, worldCenter.z);
+                Vec2 chunkWorldCenter2D = Vec2(chunkPosition.x, chunkPosition.z) * chunkSize + Vec2(chunkSize / 2.0f, chunkSize / 2.0f);
+                float distance = length(chunkWorldCenter2D - worldCenter2D);
+                
+                if (distance > updateDistance * chunkSize) {
                     if (worldManager.chunkInCache(chunkPosition)) {
                         worldManager.removeChunk(chunkPosition); // Remove chunk from cache
                     } 
@@ -49,8 +51,8 @@ float WorldGenerator::generateHeight(float x, float z) {
 
     // generate steep mountains and cliffs
     float mountainThreshold = 0.3f;
-    frequency = 0.05f / 16;
-    amplitude = 70.0f;
+    frequency = 0.1f / 16;
+    amplitude = 30.0f;
     float mountainHeight = perlinHeight.noise(x * frequency, z * frequency);
     mountainHeight = amplitude * smoothstep(mountainThreshold - 0.2f, mountainThreshold + 0.2f, mountainHeight);
 
@@ -75,18 +77,18 @@ std::string WorldGenerator::generateBiome(Vec3 worldPosition, float height) {
 
     std::string res;
 
-    if (height < 0) {
+    if (height <= 0) {
         if (temp > 0.33) return "ocean";
         else return "coldOcean";
-    } else if (height > 100) {
+    } else if (height > 60) {
         if (temp > 0.33) return "mountains";
         else return "snowyMountains";
     }
 
-    if (temp > 0.66) {
+    if (temp > 0.7) {
         if (humid > 0.5) res = "rainForest";
         else res = "dessert";
-    } else if (temp > 0.33) {
+    } else if (temp > 0.3) {
         if (humid > 0.5) res = "forest";
         else res = "grass";
     } else {
@@ -103,35 +105,56 @@ void WorldGenerator::generateChunk(std::shared_ptr<Chunk> chunk) {
 
     for (int x = 0; x < chunkSize; x++) {
         for (int z = 0; z < chunkSize; z++) {
-            float height = generateHeight(wp.x + x, wp.z + z);
+            int height = generateHeight(wp.x + x, wp.z + z);
+            chunk->heightMap[x][z] = height;
             std::string biome = generateBiome(wp, height);
             Voxel newVoxel;
+            
+            if (biome == "dessert") {
+                for (int y = 0; wp.y + y < height && y < chunkSize; y++) {
+                    if (wp.y + y > 0) {
+                        newVoxel.materialID = IDX_SAND;
+                    } else {
+                        newVoxel.materialID = IDX_STONE;
+                    }
+                    chunk->addVoxel(Vec3(x, y, z), newVoxel);
+                }
+                continue;
+            }
 
-            if (biome == "ocean") {
-                newVoxel.materialID = 8;
+            if (biome == "ocean" || biome == "coldOcean") {
                 for (int y = 0; y < chunkSize; y++) {
-                    if (wp.y + y > height && wp.y + y < 0) {
-                        chunk->addVoxel(wp + Vec3(x, y, z), newVoxel);  
+                    if (wp.y + y <= 0) {
+                        if (wp.y + y == height - 1) {
+                            newVoxel.materialID = IDX_SAND;
+                            int skyLight = clamp(15 + height, 0, 15);
+                            //newVoxel.metaData |= (skyLight << OFFSET_SKYLIGHT);
+                        } else if (wp.y + y < height) {
+                            newVoxel.materialID = IDX_STONE;
+                        } else {
+                            newVoxel.materialID = IDX_WATER;
+                        }
+                        chunk->addVoxel(Vec3(x, y, z), newVoxel);
                     }
                 } 
+                continue;
             }
             
-            for (int y = 0; y + wp.y < height && y < chunkSize; y++) {
-                if (wp.y + y >= (int)height - 1) {
-                    newVoxel.materialID = 5;
-                } else if (wp.y + y > (int)height -4) {
-                    newVoxel.materialID = 4;
+            for (int y = 0; wp.y + y < height && y < chunkSize; y++) {
+                if (wp.y + y == height - 1) {
+                    newVoxel.materialID = IDX_GRASS;
+                } else if (wp.y + y > height -3) {
+                    newVoxel.materialID = IDX_DIRT;
                 } else {
-                    newVoxel.materialID = 1;
+                    newVoxel.materialID = IDX_STONE;
                 }
-                chunk->addVoxel(wp + Vec3(x, y, z), newVoxel);   
+                chunk->addVoxel(Vec3(x, y, z), newVoxel);   
             }
         }
     }
 
     chunk->state = ChunkState::READY;
 }
-
 
 void WorldGenerator::generateChunk3D(std::shared_ptr<Chunk> chunk) {
     Vec3 wp = chunk->worldPosition;
@@ -140,7 +163,7 @@ void WorldGenerator::generateChunk3D(std::shared_ptr<Chunk> chunk) {
         for (double y = 0; y < chunkSize; y++) {
             for (double z = 0; z < chunkSize; z++) {
                 double val = perlin.noise((wp.x + x) / chunkSize, (wp.y + y) / chunkSize, (wp.z + z) / chunkSize);
-                if (val > 0.3) chunk->addVoxel(wp + Vec3(x, y, z), {5,0}); 
+                if (val > 0.3) chunk->addVoxel(Vec3(x, y, z), {5,0}); 
             }
         }
     }

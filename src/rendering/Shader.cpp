@@ -50,10 +50,7 @@ void Shader::bindMatrix(Mat4x4 matrix, const char* name) {
 void Shader::bindMaterials(Material materials[256]) {
     for (size_t i = 0; i < 256; ++i) {
         std::string materialBase = "materials[" + std::to_string(i) + "]";
-
-        glUniform3fv(glGetUniformLocation(programID, (materialBase + ".color").c_str()), 1, &materials[i].color.x);
-        glUniform1f(glGetUniformLocation(programID, (materialBase + ".reflectivity").c_str()), materials[i].reflectivity);
-        glUniform1ui(glGetUniformLocation(programID, (materialBase + ".shininess").c_str()), materials[i].shininess);
+        glUniform4fv(glGetUniformLocation(programID, (materialBase + ".color").c_str()), 1, &materials[i].color.x);
     }
 
     GLenum error = glGetError();

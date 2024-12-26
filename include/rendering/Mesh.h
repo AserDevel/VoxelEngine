@@ -4,9 +4,8 @@
 
 struct Vertex {
     Vec3 position;
-    Vec3 normal;
     GLubyte materialID;
-    GLubyte AOvalue;
+    GLushort metaData;
 };
 
 extern const Vertex cubeVertices[6][4];

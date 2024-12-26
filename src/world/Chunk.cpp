@@ -1,61 +1,53 @@
 #include "world/Chunk.h"
 
-void Chunk::addVoxel(const Vec3& worldPosition, const Voxel& voxel) {
-    Vec3 localPosition = worldPosition - this->worldPosition;
+void Chunk::addVoxel(const Vec3& localPosition, const Voxel& voxel) {
     if (positionInBounds(localPosition)) {
-        activeVoxels[positionToIndex(localPosition)] = voxel;
+        voxels[positionToIndex(localPosition)] = voxel;
+        int x = localPosition.x, z = localPosition.z;
+        if (localPosition.y >= heightMap[x][z]) heightMap[x][z] = localPosition.y;
         isDirty = true;
     }
 }
 
-void Chunk::removeVoxel(const Vec3& worldPosition) {
-    Vec3 localPosition = worldPosition - this->worldPosition;
-    auto idx = positionToIndex(localPosition);
-    if (activeVoxels.find(idx) != activeVoxels.end()) {
-        activeVoxels.erase(idx);
+void Chunk::removeVoxel(const Vec3& localPosition) {
+    int idx = positionToIndex(localPosition);
+    if (voxels[idx].materialID != 0) {
+        voxels[idx].materialID = 0;
+        int x = localPosition.x, z = localPosition.z;
+        if (localPosition.y == heightMap[x][z] - 1) heightMap[x][z] = localPosition.y - 1;
         isDirty = true;
     }
 }
 
-Voxel* Chunk::getVoxelAt(const Vec3& worldPosition) {
-    Vec3 localPosition = worldPosition - this->worldPosition;
-    auto idx = positionToIndex(localPosition);
-    auto it = activeVoxels.find(idx);
-    if (it != activeVoxels.end()) {
-        return &it->second;
+Voxel* Chunk::getVoxelAt(const Vec3& localPosition) {
+    int idx = positionToIndex(localPosition);
+    if (idx >= 0 && idx < (size * size * size)) {
+        return &voxels[idx];
+    } else {
+        return nullptr; // or handle error as needed
     }
-    return nullptr; // or handle error as needed
 }
 
-bool Chunk::voxelExistsAt(const Vec3 worldPosition) {
-    Vec3 localPosition = worldPosition - this->worldPosition;
-    auto idx = positionToIndex(localPosition);
-    return activeVoxels.find(idx) != activeVoxels.end();
+bool Chunk::positionIsSolid(const Vec3& localPosition) const {
+    return voxels[positionToIndex(localPosition)].materialID != IDX_AIR;
 }
 
-Vec3 Chunk::indexToPosition(int index) {
+Vec3 Chunk::indexToPosition(int index) const {
     Vec3 position;
     position.x = index % size;
     position.y = (index / size) % size;
     position.z = index / (size * size);
 
-    if (!positionInBounds(position)) return Vec3(0,0,0);
-
     return position;
 }
 
-int Chunk::positionToIndex(Vec3 localPosition) {
-    if (!positionInBounds(localPosition)) return 0;
-
-    int x = std::floor(localPosition.x);
-    int y = std::floor(localPosition.y);
-    int z = std::floor(localPosition.z);
-
-    return x + (y * size) + (z * size * size);
+int Chunk::positionToIndex(const Vec3& localPosition) const {
+    return localPosition.x + (localPosition.y * size) + (localPosition.z * size * size);
 }
 
-bool Chunk::positionIsTransparent(Vec3 localPosition) {
-    return this->activeVoxels.find(this->positionToIndex(localPosition)) == this->activeVoxels.end();
+bool Chunk::positionIsTransparent(const Vec3& localPosition) const {
+    int idx = positionToIndex(localPosition);
+    return (materials[voxels[idx].materialID].isTransparent);
 }
 
 // Helper function to check if a position is valid within the chunk
@@ -63,4 +55,30 @@ bool Chunk::positionInBounds(const Vec3& localPosition) const {
     return localPosition.x >= 0 && localPosition.x < size &&
            localPosition.y >= 0 && localPosition.y < size &&
            localPosition.z >= 0 && localPosition.z < size;
+}
+
+void Chunk::forEachVoxel(std::function<void(const Vec3&, const Voxel&)> callback) const {
+    for (int x = 0; x < size; x++) {
+        for (int y = 0; y < size; y++) {
+            for (int z = 0; z < size; z++) {
+                const Vec3& position = Vec3(x, y, z);
+                const Voxel& voxel = voxels[positionToIndex(position)];
+                if (voxel.materialID == IDX_AIR) continue;
+                callback(position, voxel);
+            }
+        }
+    }
+}
+
+void Chunk::forEachVoxel(std::function<void(const Vec3&, Voxel&)> callback) {
+    for (int x = 0; x < size; x++) {
+        for (int y = 0; y < size; y++) {
+            for (int z = 0; z < size; z++) {
+                const Vec3& position = Vec3(x, y, z);
+                Voxel& voxel = voxels[positionToIndex(position)];
+                if (voxel.materialID == IDX_AIR) continue;
+                callback(position, voxel);
+            }
+        }
+    }
 }

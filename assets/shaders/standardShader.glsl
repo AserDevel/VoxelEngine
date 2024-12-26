@@ -1,74 +1,60 @@
 #shader vertex
-#version 460 core
+#version 430 core
 
 layout (location = 0) in vec3 position;
-layout (location = 1) in vec3 normal;
-layout (location = 2) in uint materialID;
-layout (location = 3) in uint AOvalue;
+layout (location = 1) in uint materialID;   // 8-bits maps to material properties (color, transparency)
+layout (location = 2) in uint metaData;     // 16 bits AO value, normal, skylight level and blocklight level
 
-out uint matID;
-out float AO;
-out vec3 FragPos;
-out vec3 Normal;
+struct Material {
+    vec4 color;
+};
+
+vec3 normals[6] = {
+    vec3(1, 0, 0),  vec3(-1, 0, 0),  // +X, -X
+    vec3(0, 1, 0),  vec3(0, -1, 0),  // +Y, -Y
+    vec3(0, 0, 1),  vec3(0, 0, -1),  // +Z, -Z
+};
+
+out vec4 baseColor;
+out vec3 fragPos;
+out vec3 normal;
+out float skyLightFactor;
+out float blockLightFactor;
+out float AOfactor;
 
 uniform mat4 matCamera;
+uniform Material materials[256];
 
 void main() {
     gl_Position = matCamera * vec4(position, 1.0);
-
-    // Transform normal and frag position to world space
-    FragPos = position;
-    Normal = normal;
-
-    matID = materialID;
-    AO = float(AOvalue);
+    
+    baseColor = materials[materialID].color;
+    
+    fragPos = position;
+    
+    normal = normals[metaData & 7];
+    
+    AOfactor = float((metaData >> 3) & 3);
+    blockLightFactor = float((metaData >> 5) & 15) / 15.0;
+    skyLightFactor = float((metaData >> 9) & 15) / 15.0;
 }
 
 
 #shader fragment
-#version 460 core
+#version 430 core
 
-struct Material {
-    vec3 color;
-    float reflectivity;
-    uint shininess;
-};
-
-uniform vec3 eyePos;
-uniform float globalAmbience;
-uniform vec3 directionalLightDir;
-uniform vec3 directionalLightColor;
-uniform Material materials[256];
-
-in vec3 Normal;
-in vec3 FragPos;
-flat in uint matID;
-in float AO;
+in vec4 baseColor;
+in vec3 fragPos;
+in vec3 normal;
+in float skyLightFactor;
+in float blockLightFactor;
+in float AOfactor;
 
 out vec4 fragColor;
 
 void main() {
-    // Directional variables
-    vec3 normal = normalize(Normal);
-    vec3 eyeDir = normalize(eyePos - FragPos);
+    vec3 ambient = 0.1f * AOfactor * vec3(1, 1, 1);
+    vec3 skyLight = skyLightFactor * vec3(1, 0.9, 0.9);
 
-    // Add directional light (sun/moon)
-    vec3 lightDir = normalize(-directionalLightDir); // Sunlight direction
-    
-    // ambient
-    vec3 ambient = globalAmbience * directionalLightColor * AO;
-    
-    // diffuse
-    vec3 diffuse = max(dot(normal, lightDir), 0.0) * directionalLightColor;
-    
-    // Specular
-    vec3 specular = vec3(0, 0, 0);
-    if (materials[matID].reflectivity != 0.0) {
-        vec3 halfwayDir = normalize(lightDir + eyeDir);
-        specular = materials[matID].reflectivity * (pow(max(dot(normal, halfwayDir), 0.0), materials[matID].shininess)) * directionalLightColor;
-    } 
-
-    vec3 result = ambient + diffuse + specular;    
-
-    fragColor = vec4(materials[matID].color * result, 1.0);
+    fragColor = baseColor * (vec4(ambient, 1.0) + vec4(skyLight, 1.0));
 }

@@ -1,4 +1,5 @@
 #include "rendering/Renderer.h"
+#include <unordered_set>
 
 void Renderer::render() {
     Vec3 centerChunk = worldManager.worldToChunkPosition(camera.position);
@@ -10,8 +11,9 @@ void Renderer::render() {
                 Vec3 chunkPosition = centerChunk + Vec3(x, y, z);            
                 if (worldManager.chunkInCache(chunkPosition)) {
                     
-                    Vec3 chunkWorldCenter = chunkPosition * chunkSize + Vec3(chunkSize / 2.0f);
-                    float distance = length(chunkWorldCenter - camera.position);
+                    Vec2 worldCenter2D = Vec2(camera.position.x, camera.position.z);
+                    Vec2 chunkWorldCenter2D = Vec2(chunkPosition.x, chunkPosition.z) * chunkSize + Vec2(chunkSize / 2.0f, chunkSize / 2.0f);
+                    float distance = length(chunkWorldCenter2D - worldCenter2D);
                     if (distance > renderDistance * chunkSize) {
                         continue;
                     } 
@@ -36,6 +38,7 @@ void Renderer::render() {
 
                     if (chunk->state == ChunkState::MESHED) {
                         chunk->mesh.loadToGPU();
+                        chunk->transparentMesh.loadToGPU();
                         chunk->state = ChunkState::LOADED;
                     }
                     
@@ -50,19 +53,116 @@ void Renderer::render() {
     
     shader.use();
     shader.bindMatrix(camera.getMatCamera(), "matCamera");
-    shader.bindVector(camera.position, "eyePos");
-    shader.bindFloat(globalAmbience, "globalAmbience");
-    shader.bindVector(lightDir, "directionalLightDir");
-    shader.bindVector(lightColor, "directionalLightColor");
     shader.bindMaterials(materials);
     
+    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_CULL_FACE);
     for (auto chunk : chunks) {
-        if (chunk->state != ChunkState::LOADED) continue;
-        chunk->mesh.bind();
-        chunk->mesh.draw();
+        if (chunk->state == ChunkState::LOADED) {
+            chunk->mesh.bind();
+            chunk->mesh.draw();
+        }
     }
     
+    liquidShader.use();
+    liquidShader.bindMatrix(camera.getMatCamera(), "matCamera");
+
+    glDepthMask(GL_FALSE);
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    for (auto chunk : chunks) {
+        if (chunk->state == ChunkState::LOADED) {
+            chunk->transparentMesh.bind();
+            chunk->transparentMesh.draw();
+        }
+    }
+    glDisable(GL_BLEND);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_CULL_FACE);
+    
     chunks.clear();
+
+    // Render the center marker
+    markerShader.use();
+    glBindVertexArray(markerVAO);
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4); // Draw the quad
+    glBindVertexArray(0);
+    glUseProgram(0);
+}
+
+void Renderer::debugRay(Vec3 start, Vec3 direction) {
+    Vec3 end = start + direction * 10.0f; // Extend the ray for visualization
+
+    // Set up a line VAO
+    float lineVertices[] = {
+        start.x, start.y, start.z,
+        end.x, end.y, end.z
+    };
+
+    GLuint lineVAO, lineVBO;
+
+    //glDisable(GL_DEPTH_TEST); // Disable depth testing
+    glDisable(GL_CULL_FACE);
+
+    // Generate and bind the VAO
+    glGenVertexArrays(1, &lineVAO);
+    glBindVertexArray(lineVAO);
+    
+    // Generate and bind the VBO
+    glGenBuffers(1, &lineVBO);
+    glBindBuffer(GL_ARRAY_BUFFER, lineVBO);
+    
+    // Upload the line vertices to the GPU
+    glBufferData(GL_ARRAY_BUFFER, sizeof(lineVertices), &lineVertices, GL_STATIC_DRAW);
+    
+    // Set up the vertex attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Use a simple shader for the line
+    rayDebug.use();
+    glBindVertexArray(lineVAO);
+    rayDebug.bindMatrix(camera.getMatCamera(), "matCamera");
+    rayDebug.bindVector(Vec3(1, 0, 0), "lineColor");
+    glDrawArrays(GL_LINES, 0, 2);
+
+    // Cleanup
+    glDeleteBuffers(1, &lineVBO);
+    glDeleteVertexArrays(1, &lineVAO);
+
+    glEnable(GL_DEPTH_TEST); // Re-enable depth testing
+    glEnable(GL_CULL_FACE);
+}
+
+
+// Function to render a marker in the center of the screen
+void Renderer::loadCenterMarker() {
+    // NDC coordinates for a small quad centered on (0, 0)
+    float markerVertices[] = {
+        -0.01f, -0.01f, // Bottom-left
+        0.01f, -0.01f, // Bottom-right
+        0.01f,  0.01f, // Top-right
+        -0.01f,  0.01f  // Top-left
+    };
+
+    // Set up VAO/VBO for the marker
+    glGenVertexArrays(1, &markerVAO);
+    glGenBuffers(1, &markerVBO);
+
+    glBindVertexArray(markerVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, markerVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(markerVertices), markerVertices, GL_STATIC_DRAW);
+
+    // Enable vertex attribute
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Unbind VAO and VBO
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 }
 
 bool Renderer::neighboursReady(const Vec3& chunkPosition) {
@@ -81,46 +181,81 @@ bool Renderer::neighboursReady(const Vec3& chunkPosition) {
 void Renderer::generateChunkMesh(std::shared_ptr<Chunk> chunk) {
     chunk->mesh.vertices.clear();
     chunk->mesh.indices.clear();    
+    chunk->transparentMesh.vertices.clear();
+    chunk->transparentMesh.indices.clear();
 
-    for (const auto& [index, voxel] : chunk->activeVoxels) {
-        Vec3 localPosition = chunk->indexToPosition(index); 
-        bool isEdge = (localPosition.x == 0 || localPosition.x == chunkSize - 1 ||
-                    localPosition.y == 0 || localPosition.y == chunkSize - 1 ||
-                    localPosition.z == 0 || localPosition.z == chunkSize - 1);
+    chunk->forEachVoxel([this, chunk](const Vec3& localPosition, const Voxel& voxel) {
+        bool isTransparent = materials[voxel.materialID].isTransparent;
+        bool isChunkEdge = (localPosition.x == 0 || localPosition.x == chunkSize - 1 ||
+                            localPosition.y == 0 || localPosition.y == chunkSize - 1 ||
+                            localPosition.z == 0 || localPosition.z == chunkSize - 1);
+        
         // For each face of the cube
-        Vec3 chunkWorldPos = chunk->worldPosition;
-        for (int i = 0; i < 6; i++) {
-            Vec3 neighborPos = localPosition + cubeNormals[i];
+        const Vec3& chunkWorldPos = chunk->worldPosition;
+        isChunkEdge = true;
+        for (int face = 0; face < 6; face++) {
+            const Vec3& neighborPos = localPosition + cubeNormals[face];
 
-            bool isVisible = false;
-            if (isEdge) {
-                isVisible = !worldManager.voxelExistsAt(chunkWorldPos + neighborPos);
-            } else {
-                isVisible = chunk->positionIsTransparent(neighborPos);
+            bool faceIsVisible = false;
+            if (isChunkEdge) {
+                if (isTransparent) {
+                    faceIsVisible = !worldManager.positionIsSolid(chunkWorldPos + neighborPos);
+                } else {
+                    faceIsVisible = worldManager.positionIsTransparent(chunkWorldPos + neighborPos);
+                }
+            } else { // Direct acces from chunk for less overhead
+                if (isTransparent) {
+                    faceIsVisible = !chunk->positionIsSolid(neighborPos);
+                } else {
+                    faceIsVisible = chunk->positionIsTransparent(neighborPos);
+                }
             }
-                    
-            if (isVisible) {
+            
+            if (faceIsVisible) {
+                // Calculate light level
+                int skyLightLevel = getSkyLightLevel(chunk, neighborPos);
+
                 // Transform face vertices to world coordinates
                 int a00a11 = 0, a01a10 = 0;
-                for (int v = 0; v < 4; v++) {
-                    Vertex vertex = cubeVertices[i][v];
+                for (int vert = 0; vert < 4; vert++) {
+                    Vertex vertex = cubeVertices[face][vert];
                     
                     vertex.position += chunkWorldPos + localPosition;
                     vertex.materialID = voxel.materialID;
-                    vertex.AOvalue = vertexAO(i, v, chunkWorldPos + localPosition);
-                    
-                    if (v < 2) {
-                        a00a11 += vertex.AOvalue;
+                    vertex.metaData = voxel.metaData;
+                    vertex.metaData |= face << OFFSET_NORMALS;
+                    vertex.metaData |= skyLightLevel << OFFSET_SKYLIGHT;
+
+                    if (isTransparent) {
+                        vertex.metaData |= 3 << OFFSET_AO;
+                        chunk->transparentMesh.vertices.push_back(vertex);
+                        continue;
+                    }
+
+                    int AOvalue = vertexAO(face, vert, chunkWorldPos + localPosition);
+                    vertex.metaData |= AOvalue << OFFSET_AO;
+
+                    if (vert < 2) {
+                        a00a11 += AOvalue;
                     } else {
-                        a01a10 += vertex.AOvalue;
+                        a01a10 += AOvalue;
                     }  
                     
                     chunk->mesh.vertices.push_back(vertex);
                 }
+
+                // Add face indices, offset by current vertex count
+                GLuint baseIndex;
+                if (isTransparent) {
+                    baseIndex = chunk->transparentMesh.vertices.size() - 4;
+                    for (int i = 0; i < 6; i++) {
+                        chunk->transparentMesh.indices.push_back(baseIndex + cubeIndicies[i]);
+                    }
+                    continue;
+                }
                 
                 bool flipDiagonal = a00a11 > a01a10;
-                // Add face indices, offset by current vertex count
-                GLuint baseIndex = chunk->mesh.vertices.size() - 4;
+                baseIndex = chunk->mesh.vertices.size() - 4;
                 if (flipDiagonal) {
                     for (int i = 0; i < 6; i++) {
                         chunk->mesh.indices.push_back(baseIndex + cubeIndiciesFlipped[i]);
@@ -132,11 +267,58 @@ void Renderer::generateChunkMesh(std::shared_ptr<Chunk> chunk) {
                 }
             }
         }
-    }
+    });
 
     chunk->state = ChunkState::MESHED;
     chunk->isDirty = false;
 }
+
+int Renderer::getSkyLightLevel(std::shared_ptr<Chunk> chunk, const Vec3& localPosition) {
+    int lightLevel = 15;
+    std::queue<Vec3> positions;
+    std::unordered_set<int> visited;
+
+    // Push the initial position
+    positions.push(localPosition);
+    visited.insert(chunk->positionToIndex(localPosition));
+
+    int positionCounter = positions.size(); // Start with the initial position count
+
+    while (lightLevel > 0 && !positions.empty()) {
+        const Vec3& currPos = positions.front();
+        positions.pop();
+        positionCounter--;
+
+        // Check height map once per position
+        int heightAtColumn = chunk->heightMap[(int)currPos.x][(int)currPos.z];
+        if (heightAtColumn == (int)(currPos.y + chunk->worldPosition.y)) {
+            return lightLevel;
+        }
+
+        // Enqueue neighbors
+        for (int face = 0; face < 6; face++) {
+            const Vec3& newPos = currPos + cubeNormals[face];
+
+            if (chunk->positionInBounds(newPos) && !chunk->positionIsSolid(newPos)) {
+                // Only process unvisited positions
+                int idx = chunk->positionToIndex(newPos);
+                if (visited.find(idx) == visited.end()) {
+                    positions.push(newPos);
+                    visited.insert(idx);
+                }
+            }
+        }
+
+        // If we've processed all positions at the current level, reduce the light level
+        if (positionCounter == 0) {
+            lightLevel--;
+            positionCounter = positions.size(); // Reset counter for the next level
+        }
+    }
+
+    return lightLevel;
+}
+
 
 int Renderer::vertexAO(int i, int v, const Vec3& voxelWorldPos) {
     Vec3 normal = cubeNormals[i];
@@ -159,9 +341,9 @@ int Renderer::vertexAO(int i, int v, const Vec3& voxelWorldPos) {
     }
 
     int side1 = 0, side2 = 0, corner = 0;
-    if (worldManager.voxelExistsAt(voxelWorldPos + side1Pos)) side1 = 1;
-    if (worldManager.voxelExistsAt(voxelWorldPos + side2Pos)) side2 = 1;
-    if (worldManager.voxelExistsAt(voxelWorldPos + cornerPos)) corner = 1;
+    if (!worldManager.positionIsTransparent(voxelWorldPos + side1Pos)) side1 = 1;
+    if (!worldManager.positionIsTransparent(voxelWorldPos + side2Pos)) side2 = 1;
+    if (!worldManager.positionIsTransparent(voxelWorldPos + cornerPos)) corner = 1;
 
     if (side1 && side2) return 0;
     

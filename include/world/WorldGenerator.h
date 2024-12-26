@@ -6,15 +6,14 @@
 
 class WorldGenerator {
 public:
-    WorldGenerator(WorldManager& worldManager, ThreadManager& threadManager) : worldManager(worldManager), threadManager(threadManager) {
-        chunkSize = worldManager.getChunkSize();
-    }
+    WorldGenerator(WorldManager& worldManager, ThreadManager& threadManager) 
+        : worldManager(worldManager), threadManager(threadManager) {}
 
     ~WorldGenerator() {}
 
     void setUpdateDistance(int updateDistance) { this->updateDistance = updateDistance; }
 
-    void updateChunks(Vec3 centerWorldPosition);
+    void updateChunks(Vec3 worldCenter);
 
 private:
     int updateDistance = 4;
@@ -27,7 +26,7 @@ private:
     WorldManager& worldManager;
     ThreadManager& threadManager;
 
-    int chunkSize = 16;
+    static const int chunkSize = CHUNKSIZE;
 
     void generateChunk(std::shared_ptr<Chunk> chunk);
 

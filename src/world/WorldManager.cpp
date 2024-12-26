@@ -14,7 +14,7 @@ void WorldManager::removeChunk(const Vec3& chunkPosition) {
 
 // Chunk management
 std::shared_ptr<Chunk> WorldManager::addChunk(const Vec3& chunkPosition) {
-    std::shared_ptr<Chunk> chunk = std::make_shared<Chunk>(chunkPosition * chunkSize, chunkSize);
+    std::shared_ptr<Chunk> chunk = std::make_shared<Chunk>(chunkPosition * chunkSize);
     chunkCache[chunkPosition] = chunk;
     return chunk;
 }
@@ -34,17 +34,17 @@ bool WorldManager::chunkInCache(const Vec3& chunkPosition) {
 // Voxel operations
 bool WorldManager::addVoxel(const Vec3& worldPosition, const Voxel& voxel) {
     auto chunk = getChunkAt(worldToChunkPosition(worldPosition));
-    if (chunk == nullptr) return false;                         // Chunk is not in cache
-    if (chunk->voxelExistsAt(worldPosition)) return false;      // the position is occupied
-    chunk->addVoxel(worldPosition, voxel);
+    if (chunk == nullptr) return false;                                                  // Chunk is not in cache
+    if (chunk->positionIsSolid(worldPosition - chunk->worldPosition)) return false;      // the position is occupied
+    chunk->addVoxel(worldPosition - chunk->worldPosition, voxel);
     return true;
 }
 
 bool WorldManager::removeVoxel(const Vec3& worldPosition) {
     auto chunk = getChunkAt(worldToChunkPosition(worldPosition));
-    if (chunk == nullptr) return false;                     // Chunk is not in cache
-    if (!chunk->voxelExistsAt(worldPosition)) return false; // there is no voxel to be removed
-    chunk->removeVoxel(worldPosition);
+    if (chunk == nullptr) return false;                                              // Chunk is not in cache
+    if (!chunk->positionIsSolid(worldPosition - chunk->worldPosition)) return false; // there is no voxel to be removed
+    chunk->removeVoxel(worldPosition - chunk->worldPosition);
     
     // Update isDirty flag for potential neighbor chunks
     Vec3 localVoxelPos = worldPosition - chunk->worldPosition;
@@ -63,87 +63,66 @@ bool WorldManager::removeVoxel(const Vec3& worldPosition) {
     return true;
 }
 
-Voxel* WorldManager::getVoxel(const Vec3& worldPosition) {
+Voxel* WorldManager::getVoxelAt(const Vec3& worldPosition) {
     auto chunk = getChunkAt(worldToChunkPosition(worldPosition));
     if (chunk == nullptr) return nullptr;
-    return chunk->getVoxelAt(worldPosition);
+    return chunk->getVoxelAt(worldPosition - chunk->worldPosition);
 }
 
-bool WorldManager::voxelExistsAt(const Vec3& worldPosition) {
+bool WorldManager::positionIsSolid(const Vec3& worldPosition) {
     auto chunk = getChunkAt(worldToChunkPosition(worldPosition));
     if (chunk == nullptr) return false;
-    return chunk->voxelExistsAt(worldPosition);
+    return chunk->positionIsSolid(worldPosition - chunk->worldPosition);
 }
 
-bool WorldManager::getFirstVoxelCollision(const Vec3& startPoint, const Vec3& endPoint, Vec3& voxelPos) {
-    if (voxelExistsAt(startPoint)) {
-        voxelPos = startPoint;
-        return true;
-    }
+bool WorldManager::positionIsTransparent(const Vec3& worldPosition) {
+    auto chunk = getChunkAt(worldToChunkPosition(worldPosition));
+    if (chunk == nullptr) return true;
+    return chunk->positionIsTransparent(worldPosition - chunk->worldPosition);
+}
 
+bool WorldManager::worldRayDetection(const Vec3& startPoint, const Vec3& endPoint, Vec3& voxelPos, Vec3& normal) {
     Vec3 rayDir = normalise(endPoint - startPoint);
     Vec3 rayPos = startPoint;
     float rayLength = length(endPoint - startPoint);
     
-    Vec3 normal;
-    float tEntry, tEntryNext, tExit;
+    float tEntry = 0.0f, tEntryNext = 0.0f, tExit = 0.0f;
 
-    // get all chunks that collide with the ray sorted by entry times
-    Vec3 chunkPos = worldToChunkPosition(startPoint);
-    std::queue<std::shared_ptr<Chunk>> chunksToCheck;
+    Vec3 boundary = Vec3(0.5, 0.5, 0.5);
+
+    voxelPos = floor(startPoint + boundary);
+    normal = Vec3(0, 0, 0);
     while (tEntry <= rayLength) {
-        chunksToCheck.push(getChunkAt(chunkPos));
+
+        if (positionIsSolid(voxelPos)) {
+            return true;
+        }
 
         Vec3 step = sign(rayDir);
-        if (step.x == 0) step.x = 1; if (step.y == 0) step.y = 1; if (step.z == 0) step.z = 1;
+        step.x = (rayDir.x == 0) ? 1 : step.x;
+        step.y = (rayDir.y == 0) ? 1 : step.y;
+        step.z = (rayDir.z == 0) ? 1 : step.z;
 
-        auto chunkX = getChunkAt(chunkPos + Vec3(step.x, 0, 0));
-        auto chunkY = getChunkAt(chunkPos + Vec3(0, step.y, 0));
-        auto chunkZ = getChunkAt(chunkPos + Vec3(0, 0, step.z));
+        Vec3 voxelPosX = voxelPos + Vec3(step.x, 0, 0);
+        Vec3 voxelPosY = voxelPos + Vec3(0, step.y, 0);
+        Vec3 voxelPosZ = voxelPos + Vec3(0, 0, step.z);
 
-        if (!chunkX || !chunkY || !chunkZ) break;
+        AABB voxelBoxX = { voxelPosX - boundary, voxelPosX + boundary };
+        AABB voxelBoxY = { voxelPosY - boundary, voxelPosY + boundary };
+        AABB voxelBoxZ = { voxelPosZ - boundary, voxelPosZ + boundary };
 
-        if (AABBrayDetection(rayPos, rayDir, chunkX->box, normal, tEntryNext, tExit)) {
-            chunkPos = worldToChunkPosition(chunkX->worldPosition);
-        } else if (AABBrayDetection(rayPos, rayDir, chunkY->box, normal, tEntryNext, tExit)) {
-            chunkPos = worldToChunkPosition(chunkY->worldPosition);
-        } else if (AABBrayDetection(rayPos, rayDir, chunkZ->box, normal, tEntryNext, tExit)) {
-            chunkPos = worldToChunkPosition(chunkZ->worldPosition);
+        if (AABBrayDetection(rayPos, rayDir, voxelBoxX, normal, tEntryNext, tExit)) {
+            voxelPos = voxelPosX;
+        } else if (AABBrayDetection(rayPos, rayDir, voxelBoxY, normal, tEntryNext, tExit)) {
+            voxelPos = voxelPosY;
+        } else if (AABBrayDetection(rayPos, rayDir, voxelBoxZ, normal, tEntryNext, tExit)) {
+            voxelPos = voxelPosZ;
         } else {
-            break;
+            return false;
         }
         
         rayPos += rayDir * tEntryNext;
         tEntry += tEntryNext;
-    }
-    
-    float firstEntry = INF_FLOAT;
-    bool collision = false;
-
-    // Check each chunk from front to back
-    while (!chunksToCheck.empty()) {
-        auto chunk = chunksToCheck.front();
-        chunksToCheck.pop();
-
-        if (chunk == nullptr) continue;
-
-        Vec3 chunkWorldPos = chunk->worldPosition;
-        for (auto [index, voxel] : chunk->activeVoxels) {
-            Vec3 pos = chunkWorldPos + chunk->indexToPosition(index);
-            
-            AABB box = { pos, pos + Vec3(1, 1, 1) };
-            if (AABBrayDetection(startPoint, rayDir, box, normal, tEntry, tExit)) {
-                // Ignore negative tEntry (behind the ray origin) and those furter than raylength
-                if (tEntry > 0 && tEntry <= rayLength && tEntry < firstEntry) {
-                    firstEntry = tEntry;
-                    voxelPos = pos;
-                    collision = true;
-                }
-            }
-        }
-        if (collision) {
-            return true;
-        }
     }
 
     return false;

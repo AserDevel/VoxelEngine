@@ -8,45 +8,45 @@
 const Vertex cubeVertices[6][4] {
     // +X face
     {
-        { Vec3(0.5f, -0.5f, -0.5f),    Vec3(1.0f, 0.0f, 0.0f) },
-        { Vec3(0.5f, 0.5f, 0.5f),      Vec3(1.0f, 0.0f, 0.0f) },
-        { Vec3(0.5f, 0.5f, -0.5f),     Vec3(1.0f, 0.0f, 0.0f) },
-        { Vec3(0.5f, -0.5f, 0.5f),     Vec3(1.0f, 0.0f, 0.0f) },
+        { Vec3(0.5f, -0.5f, -0.5f)  },
+        { Vec3(0.5f, 0.5f, 0.5f)    },
+        { Vec3(0.5f, 0.5f, -0.5f)   },
+        { Vec3(0.5f, -0.5f, 0.5f)   },
     },
     // -X face
     {
-        { Vec3(-0.5f, -0.5f, 0.5f),    Vec3(-1.0f, 0.0f, 0.0f) },
-        { Vec3(-0.5f, 0.5f, -0.5f),    Vec3(-1.0f, 0.0f, 0.0f) },
-        { Vec3(-0.5f, 0.5f, 0.5f),     Vec3(-1.0f, 0.0f, 0.0f) },
-        { Vec3(-0.5f, -0.5f, -0.5f),   Vec3(-1.0f, 0.0f, 0.0f) },
+        { Vec3(-0.5f, -0.5f, 0.5f)  },
+        { Vec3(-0.5f, 0.5f, -0.5f)  },
+        { Vec3(-0.5f, 0.5f, 0.5f)   },
+        { Vec3(-0.5f, -0.5f, -0.5f) },
     },
     // +Y face
     {
-        { Vec3(-0.5f, 0.5f, -0.5f),    Vec3(0.0f, 1.0f, 0.0f) },
-        { Vec3(0.5f, 0.5f, 0.5f),      Vec3(0.0f, 1.0f, 0.0f) },
-        { Vec3(-0.5f, 0.5f, 0.5f),     Vec3(0.0f, 1.0f, 0.0f) },
-        { Vec3(0.5f, 0.5f, -0.5f),     Vec3(0.0f, 1.0f, 0.0f) },
+        { Vec3(-0.5f, 0.5f, -0.5f)  },
+        { Vec3(0.5f, 0.5f, 0.5f)    },
+        { Vec3(-0.5f, 0.5f, 0.5f)   },
+        { Vec3(0.5f, 0.5f, -0.5f)   },
     },
     // -Y face
     {
-        { Vec3(0.5f, -0.5f, 0.5f),     Vec3(0.0f, -1.0f, 0.0f) },
-        { Vec3(-0.5f, -0.5f, -0.5f),   Vec3(0.0f, -1.0f, 0.0f) },
-        { Vec3(-0.5f, -0.5f, 0.5f),    Vec3(0.0f, -1.0f, 0.0f) },
-        { Vec3(0.5f, -0.5f, -0.5f),    Vec3(0.0f, -1.0f, 0.0f) },
+        { Vec3(0.5f, -0.5f, 0.5f)   },
+        { Vec3(-0.5f, -0.5f, -0.5f) },
+        { Vec3(-0.5f, -0.5f, 0.5f)  },
+        { Vec3(0.5f, -0.5f, -0.5f)  },
     },
     // +Z face
     {
-        { Vec3(0.5f, -0.5f, 0.5f),     Vec3(0.0f, 0.0f, 1.0f) },
-        { Vec3(-0.5f, 0.5f, 0.5f),     Vec3(0.0f, 0.0f, 1.0f) },
-        { Vec3(0.5f, 0.5f, 0.5f),      Vec3(0.0f, 0.0f, 1.0f) },
-        { Vec3(-0.5f, -0.5f, 0.5f),    Vec3(0.0f, 0.0f, 1.0f) },
+        { Vec3(0.5f, -0.5f, 0.5f)    },
+        { Vec3(-0.5f, 0.5f, 0.5f)    },
+        { Vec3(0.5f, 0.5f, 0.5f)     },
+        { Vec3(-0.5f, -0.5f, 0.5f)   },
     },
     // -Z face
     {
-        { Vec3(-0.5f, -0.5f, -0.5f),   Vec3(0.0f, 0.0f, -1.0f) },
-        { Vec3(0.5f, 0.5f, -0.5f),     Vec3(0.0f, 0.0f, -1.0f) },
-        { Vec3(-0.5f, 0.5f, -0.5f),    Vec3(0.0f, 0.0f, -1.0f) },
-        { Vec3(0.5f, -0.5f, -0.5f),    Vec3(0.0f, 0.0f, -1.0f) },
+        { Vec3(-0.5f, -0.5f, -0.5f)  },
+        { Vec3(0.5f, 0.5f, -0.5f)    },
+        { Vec3(-0.5f, 0.5f, -0.5f)   },
+        { Vec3(0.5f, -0.5f, -0.5f)   },
     }
 };
 
@@ -90,7 +90,6 @@ void Mesh::printVertices() {
     std::cout << "Verts" << std::endl;
     for (auto vert : vertices) {
         vert.position.print();
-        vert.normal.print();
         std::cout << vert.materialID << std::endl;
     }
 }
@@ -106,14 +105,12 @@ void Mesh::loadToGPU() {
 	}
 
     // Define vertex attributes
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(offsetof(Vertex, position)));
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(sizeof(Vec3)));
+    glVertexAttribIPointer(1, 1, GL_UNSIGNED_BYTE, sizeof(Vertex), (void*)(offsetof(Vertex, materialID)));
     glEnableVertexAttribArray(1);
-    glVertexAttribIPointer(2, 1, GL_UNSIGNED_BYTE, sizeof(Vertex), (void*)(2 * sizeof(Vec3)));
+    glVertexAttribIPointer(2, 1, GL_UNSIGNED_SHORT, sizeof(Vertex), (void*)(offsetof(Vertex, metaData)));
     glEnableVertexAttribArray(2);
-    glVertexAttribIPointer(3, 1, GL_UNSIGNED_BYTE, sizeof(Vertex), (void*)(1 + 2 * sizeof(Vec3)));
-    glEnableVertexAttribArray(3);
 
 	error = glGetError();
 	if (error != GL_NO_ERROR) {
@@ -144,7 +141,7 @@ void Mesh::draw() {
 void Mesh::loadMeshFromObjFile(std::string filename) {
     vertices.clear();
     indices.clear();
-    
+
 	std::ifstream f(filename);
     if (!f.is_open()) {
         std::cerr << "Error opening object file: " << filename << "\n";
@@ -217,7 +214,7 @@ void Mesh::loadMeshFromObjFile(std::string filename) {
                     // Add the position, texture, and normal to the vertex
                     if (vIndex != -1) vertex.position = verts[vIndex];
                     //if (vtIndex != -1) vertex.texCoord = texs[vtIndex];
-                    if (vnIndex != -1) vertex.normal = norms[vnIndex];
+                    //if (vnIndex != -1) vertex.normal = norms[vnIndex];
 
                     // Store the vertex
                     vertices.push_back(vertex);

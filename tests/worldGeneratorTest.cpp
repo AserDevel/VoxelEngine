@@ -23,8 +23,8 @@ float generateHeight(float x, float z) {
 
     // generate steep mountains and cliffs
     float mountainThreshold = 0.3f;
-    frequency = 0.05f / 16;
-    amplitude = 70.0f;
+    frequency = 0.1f / 16;
+    amplitude = 50.0f;
     float mountainHeight = perlinHeight.noise(x * frequency, z * frequency);
     mountainHeight = amplitude * smoothstep(mountainThreshold - 0.2f, mountainThreshold + 0.2f, mountainHeight);
 
@@ -51,8 +51,8 @@ Vec3 generateBiome(float x, float z, float height) {
 
     Vec3 color;
 
-    if (height < 0) return Vec3(0, 0, 1);
-    if (height > 100) return Vec3(1, 1, 1);
+    if (height <= 0) return Vec3(0, 0, 1);
+    if (height > 80) return Vec3(1, 1, 1);
     if (temp > 0.66f) {
         if (humid > 0.5f) color = Vec3(0, 0.3, 0); // rain forrest
         else color = Vec3(1, 1, 0); // dessert
@@ -87,8 +87,8 @@ SDL_Texture* GenerateHeightMap(SDL_Renderer* renderer, int width, int height) {
 
             // Map heightValue to grayscale (0-255)
             float heightValue = generateHeight(fx*10, fy*10);
-            //heightValue = clamp(heightValue, 0, 255);
-            //Uint8 grayscale = static_cast<Uint8>(heightValue);
+            heightValue = clamp(heightValue, 0, 255);
+            Uint8 grayscale = static_cast<Uint8>(heightValue);
 
             Vec3 biomeColors = generateBiome(fx*10, fy*10, heightValue);
 
@@ -98,6 +98,7 @@ SDL_Texture* GenerateHeightMap(SDL_Renderer* renderer, int width, int height) {
 
             // Set the pixel as an RGBA value (grayscale for R, G, B, A = 255)
             pixels[y * width + x] = SDL_MapRGBA(surface->format, r, g, b, 255);
+            //pixels[y * width + x] = SDL_MapRGBA(surface->format, grayscale, grayscale, grayscale, 255);
         }
     }
 

@@ -21,6 +21,23 @@ struct Vec3Hash {
     }
 };
 
+// Hash function for Vec2
+struct Vec2Hash {
+    std::size_t operator()(const Vec3& v) const {
+        auto hashCombine = [](std::size_t seed, std::size_t value) {
+            return seed ^ (value + 0x9e3779b9 + (seed << 6) + (seed >> 2));
+        };
+
+        int xInt = static_cast<int>(v.x * 1000);  // Scale to fixed precision
+        int yInt = static_cast<int>(v.y * 1000);
+
+        std::size_t hash = std::hash<int>()(xInt);
+        hash = hashCombine(hash, std::hash<int>()(yInt));
+
+        return hash;
+    }
+};
+
 class WorldManager {
 public:
     WorldManager(int chunkSize)
@@ -37,20 +54,17 @@ public:
     // Static voxel operations
     bool addVoxel(const Vec3& worldPosition, const Voxel& voxel);
     bool removeVoxel(const Vec3& worldPosition);
-    Voxel* getVoxel(const Vec3& worldPosition);
-    bool voxelExistsAt(const Vec3& worldPosition);
-
-    // Dynamic voxel management
-    void addDynamicVoxel(const DynamicVoxel& voxel);
-    void updateDynamicVoxels(float deltaTime); // Updates positions of all dynamic voxels
-    const std::vector<DynamicVoxel>& getDynamicVoxels() const;
+    Voxel* getVoxelAt(const Vec3& worldPosition);
+    bool positionIsSolid(const Vec3& worldPosition);
+    bool positionIsTransparent(const Vec3& worldPosition);
 
     // Utility functions
     Vec3 worldToChunkPosition(const Vec3& worldPosition) const;
-    bool getFirstVoxelCollision(const Vec3& startPoint, const Vec3& endPoint, Vec3& voxelPos);
+    bool worldRayDetection(const Vec3& startPoint, const Vec3& endPoint, Vec3& voxelPos, Vec3& normal);
 
-public:
-    std::unordered_map<Vec3, std::shared_ptr<Chunk>, Vec3Hash> chunkCache;    
+private:
+    std::unordered_map<Vec3, std::shared_ptr<Chunk>, Vec3Hash> chunkCache;   
+    std::unordered_map<Vec2, std::shared_ptr<ChunkColumn>, Vec2Hash> chunkColumns;  
     std::vector<DynamicVoxel> dynamicVoxels;                                
     int chunkSize;                                                          
 };
