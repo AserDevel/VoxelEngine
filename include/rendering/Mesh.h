@@ -2,10 +2,21 @@
 
 #include "utilities/standard.h"
 
+// data layout
+// 0-3 skylightlevel
+// 4-7 blocklightlevel
+// 8-9 AO level
+// 10-12 normal
+// 13-20 materialID
+
+#define OFFSET_LIGHTLEVEL 0
+#define OFFSET_AO 8
+#define OFFSET_NORMAL 10
+#define OFFSET_MATERIALID 13
+
 struct Vertex {
     Vec3 position;
-    GLubyte materialID;
-    GLushort metaData;
+    GLuint data;
 };
 
 extern const Vertex cubeVertices[6][4];
@@ -31,8 +42,6 @@ public:
     void draw();
 
     void loadMeshFromObjFile(std::string filename);
-
-    void printVertices();
 
 private:
     GLuint VAO; // Vertex Array Object (loading attribute pointers)

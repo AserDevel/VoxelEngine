@@ -4,7 +4,7 @@
 #include "rendering/Camera.h"
 #include "world/WorldManager.h"
 #include "rendering/Renderer.h"
-#include "world/WorldGenerator.h"
+#include "world/ChunkGenerator.h"
 #include "physics/AABB.h"
 
 // Window dimensions
@@ -37,8 +37,8 @@ bool initializeWindow(SDL_Window** window, SDL_GLContext* context) {
         return false;
     }
 
-    SDL_ShowCursor(SDL_DISABLE);
-    SDL_SetRelativeMouseMode(SDL_TRUE);
+    //SDL_ShowCursor(SDL_DISABLE);
+    //SDL_SetRelativeMouseMode(SDL_TRUE);
 
     *context = SDL_GL_CreateContext(*window);
     if (!*context) {
@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
     }
 
     Camera camera = Camera(
-        Vec3(0.0f, 10.0f, 0.0f),  // Position
+        Vec3(0.0f, 100.0f, 0.0f),  // Position
         Vec3(0.0f, 1.0f, 0.0f),  // Up vector
         0,                       // Yaw
         0,                       // Pitch
@@ -107,13 +107,9 @@ int main(int argc, char* argv[]) {
         1000.0f                  // Far plane
     );
 
-    WorldManager worldManager(16);
     ThreadManager threadManager(4);
-    WorldGenerator worldGenerator(worldManager, threadManager);
-    Renderer renderer(worldManager, threadManager, camera);
-
-    worldGenerator.setUpdateDistance(9);
-    renderer.setRenderDistance(8);
+    WorldManager worldManager(threadManager, 10);
+    Renderer renderer(worldManager, camera);
 
     float lastFrameTime = SDL_GetTicks() / 1000.0f;
     isRunning = true;
@@ -121,7 +117,7 @@ int main(int argc, char* argv[]) {
         float currentTime = SDL_GetTicks() / 1000.0f;
         float deltaTime = currentTime - lastFrameTime;
         lastFrameTime = currentTime;
-
+        
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
@@ -162,7 +158,7 @@ int main(int argc, char* argv[]) {
         glDepthRange(0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
-        worldGenerator.updateChunks(camera.position);
+        worldManager.updateChunks(camera.position);
         renderer.render();
 
         SDL_GL_SwapWindow(window);

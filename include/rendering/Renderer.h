@@ -8,7 +8,6 @@
 
 class Renderer {
 private:
-    int renderDistance = 4;
     float globalAmbience = 0.2f;
 
     Vec3 lightDir;
@@ -19,12 +18,10 @@ private:
     Shader markerShader = Shader("assets/shaders/marker.glsl");
     Shader rayDebug = Shader("assets/shaders/rayDebug.glsl");
 
-    static const int chunkSize = CHUNKSIZE;
+    static const int chunkSize = SUBCHUNK_SIZE;
 
     Camera& camera;
     WorldManager& worldManager;
-    ThreadManager& threadManager;
-    std::vector<std::shared_ptr<Chunk>> chunks;
     
     Shader shadowShader = Shader("assets/shaders/shadowShader.glsl");
     Shader shadowMap = Shader("assets/shaders/shadowMap.glsl");
@@ -37,30 +34,21 @@ private:
     GLuint markerShaderProgram;
 
 public:
-    Renderer(WorldManager& worldManager, ThreadManager& threadManager, Camera& camera)
-        : worldManager(worldManager), threadManager(threadManager), camera(camera) {
+    Renderer(WorldManager& worldManager, Camera& camera)
+        : worldManager(worldManager), camera(camera) {
             loadCenterMarker();
         }
 
     ~Renderer() {}
 
-    void setRenderDistance(int chunkRadius) {
-        renderDistance = chunkRadius;
-    }
-
     void render();
 
 private:
-    void generateChunkMesh(std::shared_ptr<Chunk> chunk);
-
     void loadCenterMarker();
 
-    bool neighboursReady(const Vec3& chunkPosition);
+    void propagateLight(const Vec3& sourceWorldPosition, uint8_t initialLightLevel);
 
-    // Compute ambient occlusion for a given vertex
-    int vertexAO(int i, int v, const Vec3& voxelWorldPos);
-
-    int getSkyLightLevel(std::shared_ptr<Chunk> chunk, const Vec3& localPosition);
+    int getSkyLightLevel(SubChunk& chunk, const Vec3& localPosition);
 
     void initShadowMaps();
 
@@ -69,5 +57,4 @@ private:
     void debugShadowMap(GLuint shadowMap);
 
     void debugRay(Vec3 start, Vec3 direction);
-
 };

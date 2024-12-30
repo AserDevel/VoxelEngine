@@ -2,8 +2,7 @@
 #version 430 core
 
 layout (location = 0) in vec3 position;
-layout (location = 1) in uint materialID;   // 8-bits maps to material properties (color, transparency)
-layout (location = 2) in uint metaData;     // 16 bits AO value, normal, skylight level and blocklight level
+layout (location = 1) in uint data;
 
 struct Material {
     vec4 color;
@@ -11,8 +10,8 @@ struct Material {
 
 vec3 normals[6] = {
     vec3(1, 0, 0),  vec3(-1, 0, 0),  // +X, -X
-    vec3(0, 1, 0),  vec3(0, -1, 0),  // +Y, -Y
     vec3(0, 0, 1),  vec3(0, 0, -1),  // +Z, -Z
+    vec3(0, 1, 0),  vec3(0, -1, 0),  // +Y, -Y
 };
 
 out vec4 baseColor;
@@ -27,16 +26,16 @@ uniform Material materials[256];
 
 void main() {
     gl_Position = matCamera * vec4(position, 1.0);
+
+    skyLightFactor = float(data & 15) / 15.0;
+    blockLightFactor = float((data >> 4) & 15) / 15.0;
+    AOfactor = float((data >> 8) & 3);
+    normal = normals[(data >> 10) & 7];
+    uint materialID = (data >> 13) & 127;
     
     baseColor = materials[materialID].color;
     
     fragPos = position;
-    
-    normal = normals[metaData & 7];
-    
-    AOfactor = float((metaData >> 3) & 3);
-    blockLightFactor = float((metaData >> 5) & 15) / 15.0;
-    skyLightFactor = float((metaData >> 9) & 15) / 15.0;
 }
 
 

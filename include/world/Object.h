@@ -19,6 +19,4 @@ class Object {
 
     // Physics properties
     Vec3 velocity;
-
-    void reload();
 };

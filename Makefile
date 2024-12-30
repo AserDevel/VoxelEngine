@@ -1,6 +1,6 @@
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -Iinclude -std=c++17
+CXXFLAGS = -g -Iinclude -std=c++17
 
 # Libraries
 LIB = -lSDL2 -lSDL2_image -lGL -ldl

@@ -1,70 +1,48 @@
 #pragma once
 
-#include "Chunk.h"
-
-// Hash function for Vec3
-struct Vec3Hash {
-    std::size_t operator()(const Vec3& v) const {
-        auto hashCombine = [](std::size_t seed, std::size_t value) {
-            return seed ^ (value + 0x9e3779b9 + (seed << 6) + (seed >> 2));
-        };
-
-        int xInt = static_cast<int>(v.x * 1000);  // Scale to fixed precision
-        int yInt = static_cast<int>(v.y * 1000);
-        int zInt = static_cast<int>(v.z * 1000);
-
-        std::size_t hash = std::hash<int>()(xInt);
-        hash = hashCombine(hash, std::hash<int>()(yInt));
-        hash = hashCombine(hash, std::hash<int>()(zInt));
-
-        return hash;
-    }
-};
-
-// Hash function for Vec2
-struct Vec2Hash {
-    std::size_t operator()(const Vec3& v) const {
-        auto hashCombine = [](std::size_t seed, std::size_t value) {
-            return seed ^ (value + 0x9e3779b9 + (seed << 6) + (seed >> 2));
-        };
-
-        int xInt = static_cast<int>(v.x * 1000);  // Scale to fixed precision
-        int yInt = static_cast<int>(v.y * 1000);
-
-        std::size_t hash = std::hash<int>()(xInt);
-        hash = hashCombine(hash, std::hash<int>()(yInt));
-
-        return hash;
-    }
-};
+#include "ChunkGenerator.h"
+#include "utilities/ThreadManager.h"
 
 class WorldManager {
-public:
-    WorldManager(int chunkSize)
-        : chunkSize(chunkSize) {}
+private:
+    std::unordered_map<Vec2, std::unique_ptr<Chunk>, Vec2Hash> chunkCache;    
+    const int chunkSize = SUBCHUNK_SIZE;
+    int updateDistance;
 
-    int getChunkSize() { return chunkSize; }
+    ChunkGenerator chunkGenerator;
+
+    ThreadManager& threadManager;
 
     // Chunk management
-    void removeChunk(const Vec3& chunkPosition);
-    std::shared_ptr<Chunk> addChunk(const Vec3& chunkPosition);
-    std::shared_ptr<Chunk> getChunkAt(const Vec3& chunkPosition);
-    bool chunkInCache(const Vec3& chunkPosition);
+    void removeChunk(const Vec2& chunkPosition2D);
+    Chunk* addChunk(const Vec2& chunkPosition2D);
+    bool chunkInCache(const Vec2& chunkPosition2D);
 
-    // Static voxel operations
-    bool addVoxel(const Vec3& worldPosition, const Voxel& voxel);
-    bool removeVoxel(const Vec3& worldPosition);
-    Voxel* getVoxelAt(const Vec3& worldPosition);
-    bool positionIsSolid(const Vec3& worldPosition);
-    bool positionIsTransparent(const Vec3& worldPosition);
+    bool neighboursReady(Chunk* chunk);
+
+public:
+    WorldManager(ThreadManager& threadManager, int updateDistance)
+        : updateDistance(updateDistance), threadManager(threadManager), chunkGenerator(ChunkGenerator()) {}
+
+    // Updates all chunks in the a set range of the camera
+    void updateChunks(Vec3 worldCenter);
+
+    // Returns all chunks that are loaded and ready to be rendered
+    std::vector<Chunk*> getLoadedChunks();
+    
+    Chunk* getChunkAt(const Vec2& chunkPosition2D) const;
+
+    // Global voxel operations
+    void addVoxel(const Vec3& worldPosition, const Voxel& voxel);
+    void removeVoxel(const Vec3& worldPosition);
+
+    // Global position checking
+    bool positionIsSolid(const Vec3& worldPosition) const;
+    bool positionIsTransparent(const Vec3& worldPosition) const;
 
     // Utility functions
-    Vec3 worldToChunkPosition(const Vec3& worldPosition) const;
-    bool worldRayDetection(const Vec3& startPoint, const Vec3& endPoint, Vec3& voxelPos, Vec3& normal);
+    Vec2 worldToChunkPosition(const Vec3& worldPosition) const;    
 
-private:
-    std::unordered_map<Vec3, std::shared_ptr<Chunk>, Vec3Hash> chunkCache;   
-    std::unordered_map<Vec2, std::shared_ptr<ChunkColumn>, Vec2Hash> chunkColumns;  
-    std::vector<DynamicVoxel> dynamicVoxels;                                
-    int chunkSize;                                                          
+    // Physics
+    bool worldRayDetection(const Vec3& startPoint, const Vec3& endPoint, Vec3& voxelPos, Vec3& normal);                                        
 };

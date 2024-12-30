@@ -1,66 +1,80 @@
 #pragma once
 
+#include "SubChunk.h"
 #include "utilities/standard.h"
-#include "Voxels.h"
-#include "Materials.h"
-#include "rendering/Mesh.h"
 #include "physics/AABB.h"
+#include <unordered_set>
 
-#define CHUNKSIZE 16
+#define MAX_HEIGHT 16 * SUBCHUNK_SIZE
+#define MAX_DEPTH 0
 
 enum class ChunkState {
     PENDING,
-    READY,
+    GENERATED,
     MESHED,
     LOADED,
 };
 
-// cubic chunk
+class WorldManager;
+
 class Chunk {
-    static const int size = CHUNKSIZE;
+    static const int chunkSize = SUBCHUNK_SIZE;
+    static const int maxHeight = MAX_HEIGHT;
+    static const int maxDepth = MAX_DEPTH;
+
+    const WorldManager* const worldManager;
+
+    // flat 2D array containing the height of each column in the chunk         
+    int heightMap[chunkSize * chunkSize];
+
+    // subchunks mapped vertically by chunkHeight 
+    std::unordered_map<int, std::unique_ptr<SubChunk>> subChunks;          
+
+    // utility functions
+    bool positionInBounds(const Vec3& worldPosition) const;
+    int worldToChunkHeight(int worldHeight) const;
+
+    // Subchunk management
+    SubChunk* addSubChunkAt(int worldHeight);
+    void removeSubChunk(int worldHeight);
 
 public:
-    Vec3 worldPosition;                          
-    Voxel voxels[size * size * size];
-    int heightMap[size][size];
-    AABB box;
-    Mesh mesh = Mesh();
-    Mesh transparentMesh = Mesh();
+    const Vec3 worldPosition; 
+    const Vec2 chunkPosition2D;      
+        
     bool isDirty = true;
     ChunkState state = ChunkState::PENDING;
 
-    Chunk(Vec3 position) : worldPosition(position) {
-        box.min = worldPosition;
-        box.max = worldPosition + (Vec3(1, 1, 1) * size);
-    }
+    Chunk(WorldManager* worldManager, Vec2 chunkPosition2D) :
+        worldManager(worldManager),
+        chunkPosition2D(chunkPosition2D),
+        worldPosition(Vec3(chunkPosition2D.x * chunkSize, maxDepth, chunkPosition2D.z * chunkSize)) {}
 
     ~Chunk() {}
-    
-    void addVoxel(const Vec3& localPosition, const Voxel& voxel);
-    void removeVoxel(const Vec3& localPosition);
-    Voxel* getVoxelAt(const Vec3& localPosition);
 
-    Vec3 indexToPosition(int index) const;
-    int positionToIndex(const Vec3& localPosition) const;
+    // returns the subchunk within the given world height. Also checks the neighbour chunks. initializes a new subchunk on first call
+    SubChunk* getSubChunkAt(int worldHeight) const;
 
-    bool positionIsSolid(const Vec3& localPosition) const;
-    bool positionIsTransparent(const Vec3& localPosition) const;
-    bool positionInBounds(const Vec3& localPosition) const;  
+    // voxel manipulation
+    bool addVoxel(const Vec3& worldPosition, const Voxel& voxel);
+    bool removeVoxel(const Vec3& worldPosition);
 
-    void forEachVoxel(std::function<void(const Vec3&, const Voxel&)> callback) const;
-    void forEachVoxel(std::function<void(const Vec3&, Voxel&)> callback);
-};
+    // position checking
+    bool positionIsSolid(const Vec3& worldPosition) const;
+    bool positionIsTransparent(const Vec3& worldPosition) const;
 
-class ChunkColumn {
-    ChunkColumn(int chunkPosX, int chunkPosZ) 
-        : chunkPosX(chunkPosX), chunkPosZ(chunkPosZ) {}
+    // mark affected subchunks when change at worldPosition
+    void markDirty(const Vec3& worldPosition);
 
-    static const int size = CHUNKSIZE;
+    // height map manipulation
+    int getHeightAt(const Vec2& worldPosition2D) const;
+    void setHeightAt(const Vec2& worldPosition2D, int height);
 
-    int chunkPosX, chunkPosZ;
-    int heightMap[size * size];
+    // recursive helper function to propagate light through the voxels within the chunk. Automatically spreads to neighbour chunks
+    void propagateLight(const Vec3& sourceWorldPosition, uint8_t initialLightLevel, std::unordered_set<Vec3, Vec3Hash>& visited);
 
-    int getHeightAt(int localX, int localZ);
-    int setHeightAt(int localX, int localZ);
-    int updateHeightAt(int localX, int localZ);
+    void generateMeshes();
+    void loadMeshes();
+    void draw();
+    void drawTransparent();
 };

@@ -8,52 +8,52 @@
 const Vertex cubeVertices[6][4] {
     // +X face
     {
-        { Vec3(0.5f, -0.5f, -0.5f)  },
-        { Vec3(0.5f, 0.5f, 0.5f)    },
-        { Vec3(0.5f, 0.5f, -0.5f)   },
-        { Vec3(0.5f, -0.5f, 0.5f)   },
+        { Vec3(0.5f, -0.5f, -0.5f),  0 },
+        { Vec3(0.5f, 0.5f, 0.5f),    0 },
+        { Vec3(0.5f, 0.5f, -0.5f),   0 },
+        { Vec3(0.5f, -0.5f, 0.5f),   0 },
     },
     // -X face
     {
-        { Vec3(-0.5f, -0.5f, 0.5f)  },
-        { Vec3(-0.5f, 0.5f, -0.5f)  },
-        { Vec3(-0.5f, 0.5f, 0.5f)   },
-        { Vec3(-0.5f, -0.5f, -0.5f) },
-    },
-    // +Y face
-    {
-        { Vec3(-0.5f, 0.5f, -0.5f)  },
-        { Vec3(0.5f, 0.5f, 0.5f)    },
-        { Vec3(-0.5f, 0.5f, 0.5f)   },
-        { Vec3(0.5f, 0.5f, -0.5f)   },
-    },
-    // -Y face
-    {
-        { Vec3(0.5f, -0.5f, 0.5f)   },
-        { Vec3(-0.5f, -0.5f, -0.5f) },
-        { Vec3(-0.5f, -0.5f, 0.5f)  },
-        { Vec3(0.5f, -0.5f, -0.5f)  },
+        { Vec3(-0.5f, -0.5f, 0.5f),  0 },
+        { Vec3(-0.5f, 0.5f, -0.5f),  0 },
+        { Vec3(-0.5f, 0.5f, 0.5f),   0 },
+        { Vec3(-0.5f, -0.5f, -0.5f), 0 },
     },
     // +Z face
     {
-        { Vec3(0.5f, -0.5f, 0.5f)    },
-        { Vec3(-0.5f, 0.5f, 0.5f)    },
-        { Vec3(0.5f, 0.5f, 0.5f)     },
-        { Vec3(-0.5f, -0.5f, 0.5f)   },
+        { Vec3(0.5f, -0.5f, 0.5f),   0 },
+        { Vec3(-0.5f, 0.5f, 0.5f),   0 },
+        { Vec3(0.5f, 0.5f, 0.5f),    0 },
+        { Vec3(-0.5f, -0.5f, 0.5f),  0 },
     },
     // -Z face
     {
-        { Vec3(-0.5f, -0.5f, -0.5f)  },
-        { Vec3(0.5f, 0.5f, -0.5f)    },
-        { Vec3(-0.5f, 0.5f, -0.5f)   },
-        { Vec3(0.5f, -0.5f, -0.5f)   },
-    }
+        { Vec3(-0.5f, -0.5f, -0.5f), 0 },
+        { Vec3(0.5f, 0.5f, -0.5f),   0 },
+        { Vec3(-0.5f, 0.5f, -0.5f),  0 },
+        { Vec3(0.5f, -0.5f, -0.5f),  0 },
+    },
+    // +Y face
+    {
+        { Vec3(-0.5f, 0.5f, -0.5f),  0 },
+        { Vec3(0.5f, 0.5f, 0.5f),    0 },
+        { Vec3(-0.5f, 0.5f, 0.5f),   0 },
+        { Vec3(0.5f, 0.5f, -0.5f),   0 },
+    },
+    // -Y face
+    {
+        { Vec3(0.5f, -0.5f, 0.5f),   0 },
+        { Vec3(-0.5f, -0.5f, -0.5f), 0 },
+        { Vec3(-0.5f, -0.5f, 0.5f),  0 },
+        { Vec3(0.5f, -0.5f, -0.5f),  0 },
+    },
 };
 
 const Vec3 cubeNormals[6] = {
     Vec3(1, 0, 0),  Vec3(-1, 0, 0),  // +X, -X
+    Vec3(0, 0, 1),  Vec3(0, 0, -1),  // +Z, -Z
     Vec3(0, 1, 0),  Vec3(0, -1, 0),  // +Y, -Y
-    Vec3(0, 0, 1),  Vec3(0, 0, -1)   // +Z, -Z
 };
 
 const GLuint cubeIndicies[6] = { 0, 1, 2, 0, 3, 1 };
@@ -64,9 +64,13 @@ Mesh::Mesh() {
     // Generate buffers and bind to VAO
 	glGenVertexArrays(1, &VAO);
     glBindVertexArray(VAO);
-
     glGenBuffers(1, &VBO);
     glGenBuffers(1, &IBO);
+
+    GLenum error = glGetError();
+    if (error != 0 || !VAO || !VBO || !IBO) {
+        std::cerr << "Error during buffer initialization: " << error << std::endl;
+    }
 }
 
 void Mesh::cleanup() {
@@ -77,7 +81,7 @@ void Mesh::cleanup() {
 	if (VBO) glDeleteBuffers(1, &VBO);
     if (VAO) glDeleteVertexArrays(1, &VAO);
     if (IBO) glDeleteBuffers(1, &IBO);
-
+    
     // Unbind buffers
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -86,15 +90,17 @@ void Mesh::cleanup() {
     VBO = VAO = IBO = 0;
 }
 
-void Mesh::printVertices() {
-    std::cout << "Verts" << std::endl;
-    for (auto vert : vertices) {
-        vert.position.print();
-        std::cout << vert.materialID << std::endl;
-    }
-}
-
 void Mesh::loadToGPU() {
+    if (vertices.empty()) {
+        std::cerr << "Attempted to upload empty vertex buffer" << std::endl;
+        return;
+    }
+
+    if (!VAO || !VBO) {
+        std::cerr << "Error: buffers are not initialized" << std::endl;
+        return;
+    }
+    
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
@@ -105,12 +111,10 @@ void Mesh::loadToGPU() {
 	}
 
     // Define vertex attributes
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(offsetof(Vertex, position)));
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(0));
     glEnableVertexAttribArray(0);
-    glVertexAttribIPointer(1, 1, GL_UNSIGNED_BYTE, sizeof(Vertex), (void*)(offsetof(Vertex, materialID)));
+    glVertexAttribIPointer(1, 1, GL_UNSIGNED_INT, sizeof(Vertex), (void*)(sizeof(Vec3)));
     glEnableVertexAttribArray(1);
-    glVertexAttribIPointer(2, 1, GL_UNSIGNED_SHORT, sizeof(Vertex), (void*)(offsetof(Vertex, metaData)));
-    glEnableVertexAttribArray(2);
 
 	error = glGetError();
 	if (error != GL_NO_ERROR) {
@@ -131,6 +135,11 @@ void Mesh::loadToGPU() {
 
 // Draw triangles
 void Mesh::draw() {
+    if (vertices.empty()) {
+        std::cerr << "Attempted to draw empty vertex buffer" << std::endl;
+        return;
+    }
+
     if (!indices.empty()) {
         glDrawElements(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, indices.data());
     } else {

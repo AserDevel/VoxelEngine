@@ -1,84 +1,208 @@
-#include "world/Chunk.h"
+#include <queue>
+#include "world/WorldManager.h"
 
-void Chunk::addVoxel(const Vec3& localPosition, const Voxel& voxel) {
-    if (positionInBounds(localPosition)) {
-        voxels[positionToIndex(localPosition)] = voxel;
-        int x = localPosition.x, z = localPosition.z;
-        if (localPosition.y >= heightMap[x][z]) heightMap[x][z] = localPosition.y;
-        isDirty = true;
+int Chunk::worldToChunkHeight(int worldHeight) const {
+    int adjustedHeight = worldHeight + maxDepth;
+    if (adjustedHeight < 0) {
+        std::cerr << "Warning: Requested height exceeds max depth\n";
+    } else if (adjustedHeight > (maxDepth + maxHeight)) {
+        std::cerr << "Warning: Requested height exceeds max height\n";
     }
+    int chunkHeight = static_cast<int>(std::floor(adjustedHeight / chunkSize));
+    return chunkHeight;
 }
 
-void Chunk::removeVoxel(const Vec3& localPosition) {
-    int idx = positionToIndex(localPosition);
-    if (voxels[idx].materialID != 0) {
-        voxels[idx].materialID = 0;
-        int x = localPosition.x, z = localPosition.z;
-        if (localPosition.y == heightMap[x][z] - 1) heightMap[x][z] = localPosition.y - 1;
-        isDirty = true;
+SubChunk* Chunk::addSubChunkAt(int worldHeight) {
+    int chunkHeight = worldToChunkHeight(worldHeight);
+    if (subChunks.find(chunkHeight) == subChunks.end()) {
+        Vec3 worldPosition = Vec3(this->worldPosition.x, chunkHeight * chunkSize, this->worldPosition.z);
+        subChunks[chunkHeight] = std::make_unique<SubChunk>(this, worldPosition);
     }
+
+    return subChunks[chunkHeight].get();
 }
 
-Voxel* Chunk::getVoxelAt(const Vec3& localPosition) {
-    int idx = positionToIndex(localPosition);
-    if (idx >= 0 && idx < (size * size * size)) {
-        return &voxels[idx];
+SubChunk* Chunk::getSubChunkAt(int worldHeight) const {
+    int chunkHeight = worldToChunkHeight(worldHeight);
+    auto it = subChunks.find(chunkHeight);
+    if (it != subChunks.end()) {
+        return it->second.get();
+    }
+    return nullptr;
+}
+
+void Chunk::markDirty(const Vec3& worldPosition) {
+    isDirty = true;
+    auto subChunk = getSubChunkAt(worldPosition.y);
+    if (subChunk) subChunk->isDirty = true;   
+}
+
+// Check if a worldposition is valid within the chunk
+bool Chunk::positionInBounds(const Vec3& worldPosition) const {
+    const Vec3 localPosition = worldPosition - this->worldPosition;
+    return localPosition.x >= 0 && localPosition.x < chunkSize &&
+           localPosition.z >= 0 && localPosition.z < chunkSize &&
+           localPosition.y >= maxDepth && localPosition.y < maxHeight;
+}
+
+// voxel manipulation
+bool Chunk::addVoxel(const Vec3& worldPosition, const Voxel& voxel) {
+    auto subChunk = addSubChunkAt(worldPosition.y);
+    if (subChunk == nullptr) {
+        std::cerr << "Error adding voxel at the chunk level" << std::endl;
+        return false;
+    }
+    Vec3 localPosition = worldPosition - subChunk->worldPosition;
+    if (subChunk->addVoxel(localPosition, voxel)) {
+        markDirty(worldPosition);
+        if (localPosition.y == chunkSize - 1) {
+            markDirty(worldPosition + Vec3(0, 1, 0));
+        } else if (localPosition.y == 0 && worldPosition.y > maxDepth) {
+            markDirty(worldPosition - Vec3(0, 1, 0));
+        }
+        return true;
+    }
+    return false;
+}
+
+bool Chunk::removeVoxel(const Vec3& worldPosition) {
+    auto subChunk = getSubChunkAt(worldPosition.y);
+    if (subChunk == nullptr) {
+        std::cerr << "Error removing voxel at the chunk level" << std::endl;
+        return false;
+    }
+    Vec3 localPosition = worldPosition - subChunk->worldPosition;
+    if (subChunk->removeVoxel(localPosition)) {
+        markDirty(worldPosition);
+        if (localPosition.y == chunkSize - 1 && positionIsSolid(worldPosition + Vec3(0, 1, 0))) {
+            markDirty(worldPosition + Vec3(0, 1, 0));
+        } else if (localPosition.y == 0 && positionIsSolid(worldPosition - Vec3(0, 1, 0))) {
+            markDirty(worldPosition - Vec3(0, 1, 0));
+        }
+        return true;
+    }
+    return false;
+}
+
+// position checking
+bool Chunk::positionIsSolid(const Vec3& worldPosition) const {
+    if (positionInBounds(worldPosition)) {
+        auto subChunk = getSubChunkAt(worldPosition.y);
+        if (subChunk == nullptr) return false;
+        return subChunk->positionIsSolid(worldPosition - subChunk->worldPosition);
     } else {
-        return nullptr; // or handle error as needed
+        return worldManager->positionIsSolid(worldPosition);
     }
 }
 
-bool Chunk::positionIsSolid(const Vec3& localPosition) const {
-    return voxels[positionToIndex(localPosition)].materialID != IDX_AIR;
+bool Chunk::positionIsTransparent(const Vec3& worldPosition) const {
+    if (positionInBounds(worldPosition)) {
+        auto subChunk = getSubChunkAt(worldPosition.y);
+        if (subChunk == nullptr) return true;
+        return subChunk->positionIsTransparent(worldPosition - subChunk->worldPosition);
+    } else {
+        return worldManager->positionIsTransparent(worldPosition);
+    }
 }
 
-Vec3 Chunk::indexToPosition(int index) const {
-    Vec3 position;
-    position.x = index % size;
-    position.y = (index / size) % size;
-    position.z = index / (size * size);
+int Chunk::getHeightAt(const Vec2& worldPosition2D) const {
+    Vec2 localPosition2D = worldPosition2D - Vec2(this->worldPosition.x, this->worldPosition.z);
+    
+    int idx = localPosition2D.x + localPosition2D.z * chunkSize;
+    if (idx < 0 || idx >= (chunkSize * chunkSize)) {
+        std::cerr << "Error getting height at position: "; worldPosition2D.print();
+        return -1;
+    }
 
-    return position;
+    return heightMap[idx];    
 }
 
-int Chunk::positionToIndex(const Vec3& localPosition) const {
-    return localPosition.x + (localPosition.y * size) + (localPosition.z * size * size);
+void Chunk::setHeightAt(const Vec2& worldPosition2D, int height) {
+    Vec2 localPosition2D = worldPosition2D - Vec2(this->worldPosition.x, this->worldPosition.z);
+    
+    int idx = localPosition2D.x + localPosition2D.z * chunkSize;
+    if (idx < 0 || idx >= (chunkSize * chunkSize)) {
+        std::cerr << "Error setting height at position: "; worldPosition2D.print();
+        return;
+    }
+
+    heightMap[idx] = height;  
 }
 
-bool Chunk::positionIsTransparent(const Vec3& localPosition) const {
-    int idx = positionToIndex(localPosition);
-    return (materials[voxels[idx].materialID].isTransparent);
+void Chunk::generateMeshes() {
+    for (auto& [height, subChunk] : subChunks) {
+        if (subChunk->isDirty) {
+            subChunk->generateMesh();
+        }
+    }
+    state = ChunkState::MESHED;
+    isDirty = false;
 }
 
-// Helper function to check if a position is valid within the chunk
-bool Chunk::positionInBounds(const Vec3& localPosition) const {
-    return localPosition.x >= 0 && localPosition.x < size &&
-           localPosition.y >= 0 && localPosition.y < size &&
-           localPosition.z >= 0 && localPosition.z < size;
+void Chunk::loadMeshes() {
+    for (auto& [height, subChunk] : subChunks) {
+        if (!subChunk->mesh.vertices.empty()) {
+            subChunk->mesh.loadToGPU();
+        }
+
+        if (!subChunk->transparentMesh.vertices.empty()) {
+            subChunk->transparentMesh.loadToGPU();
+        }
+    }
+    state = ChunkState::LOADED;
 }
 
-void Chunk::forEachVoxel(std::function<void(const Vec3&, const Voxel&)> callback) const {
-    for (int x = 0; x < size; x++) {
-        for (int y = 0; y < size; y++) {
-            for (int z = 0; z < size; z++) {
-                const Vec3& position = Vec3(x, y, z);
-                const Voxel& voxel = voxels[positionToIndex(position)];
-                if (voxel.materialID == IDX_AIR) continue;
-                callback(position, voxel);
-            }
+void Chunk::draw() {
+    for (auto& [height, subChunk] : subChunks) {
+        if (!subChunk->mesh.vertices.empty()) {
+            subChunk->mesh.bind();
+            subChunk->mesh.draw();
         }
     }
 }
 
-void Chunk::forEachVoxel(std::function<void(const Vec3&, Voxel&)> callback) {
-    for (int x = 0; x < size; x++) {
-        for (int y = 0; y < size; y++) {
-            for (int z = 0; z < size; z++) {
-                const Vec3& position = Vec3(x, y, z);
-                Voxel& voxel = voxels[positionToIndex(position)];
-                if (voxel.materialID == IDX_AIR) continue;
-                callback(position, voxel);
+void Chunk::drawTransparent() {
+    for (auto& [height, subChunk] : subChunks) {
+        if (!subChunk->transparentMesh.vertices.empty()) {
+            subChunk->transparentMesh.bind();
+            subChunk->transparentMesh.draw();
+        }
+    }
+}
+
+/*
+void Chunk::propagateLight(const Vec3& sourceWorldPosition, uint8_t initialLightLevel, std::unordered_set<Vec3, Vec3Hash>& visited) {
+    if (visited.count(sourceWorldPosition)) return; // Already processed
+    visited.insert(sourceWorldPosition);
+
+    auto voxel = getVoxelAt(sourceWorldPosition);
+    if (!voxel) return;
+
+    if (voxel->lightLevel >= initialLightLevel) return;
+    voxel->lightLevel = initialLightLevel;
+
+    uint8_t skyLight = (initialLightLevel & 0x0F);
+    uint8_t blockLight = ((initialLightLevel >> 4) & 0x0F);
+
+    if (skyLight > 0) skyLight--;
+    if (blockLight > 0) blockLight--;
+
+    uint8_t nextLightLevel = skyLight + (blockLight << 4);
+    if (nextLightLevel == 0) return;
+
+    for (int i = 0; i < 6; i++) {
+        Vec3 newPos = sourceWorldPosition + cubeNormals[i];
+
+        if (positionInBounds(newPos)) {
+            if (!positionIsSolid(newPos)) {
+                propagateLight(newPos, nextLightLevel, visited);
+            }
+        } else if (neighbourChunks[i]) {
+            if (!visited.count(newPos) && !neighbourChunks[i]->positionIsSolid(newPos)) {
+                neighbourChunks[i]->propagateLight(newPos, nextLightLevel, visited);
             }
         }
     }
 }
+*/
+
