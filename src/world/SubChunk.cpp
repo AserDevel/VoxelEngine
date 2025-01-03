@@ -1,4 +1,5 @@
 #include "world/Chunk.h"
+#include <queue>
 
 int SubChunk::positionToIndex(const Vec3& localPosition) const {
     int idx = localPosition.x + (localPosition.y * size) + (localPosition.z * size * size);
@@ -17,7 +18,6 @@ void SubChunk::forEachVoxel(std::function<void(const Vec3&, const Voxel&)> callb
             for (int x = 0; x < size; x++, idx++) {
                 const Vec3 position(x, y, z);
                 const Voxel& voxel = voxels[idx];
-                if (voxel.materialID == IDX_AIR) continue;
                 callback(position, voxel);
             }
         }
@@ -31,7 +31,6 @@ void SubChunk::forEachVoxel(std::function<void(const Vec3&, Voxel&)> callback) {
             for (int x = 0; x < size; x++, idx++) {
                 const Vec3 position(x, y, z);
                 Voxel& voxel = voxels[idx];
-                if (voxel.materialID == IDX_AIR) continue;
                 callback(position, voxel);
             }
         }
@@ -59,20 +58,9 @@ bool SubChunk::removeVoxel(const Vec3& localPosition) {
     return true;
 }
 
-bool SubChunk::positionIsSolid(const Vec3& localPosition) const {
-    if (positionInBounds(localPosition)) {
-        return voxels[positionToIndex(localPosition)].materialID != IDX_AIR;
-    } else {
-        return parentChunk->positionIsSolid(this->worldPosition + localPosition);
-    }
-}
-
-bool SubChunk::positionIsTransparent(const Vec3& localPosition) const {
-    if (positionInBounds(localPosition)) {
-        return materials[voxels[positionToIndex(localPosition)].materialID].isTransparent;
-    } else {
-        return parentChunk->positionIsTransparent(this->worldPosition + localPosition);
-    }
+Voxel* SubChunk::getVoxelAt(const Vec3& localPosition) {
+    int idx = positionToIndex(localPosition);
+    return &voxels[idx];
 }
 
 // bounds checking
@@ -89,6 +77,114 @@ bool SubChunk::positionIsEdge(const Vec3& localPosition) const {
            localPosition.z == 0 || localPosition.z == size-1;
 }
 
+bool SubChunk::positionIsSolid(const Vec3& localPosition) {
+    Voxel* voxel;
+    if (positionInBounds(localPosition)) {
+        voxel = getVoxelAt(localPosition);
+    } else {
+        Vec3 worldPosition = this->worldPosition + localPosition;
+        auto neighbour = parentChunk->getNeighbourAt(worldPosition);
+        if (!neighbour) return false;
+        voxel = neighbour->getVoxelAt(worldPosition - neighbour->worldPosition);
+    }
+    if (!voxel) return false;
+    return voxel->materialID != IDX_AIR;
+}
+
+bool SubChunk::positionIsTransparent(const Vec3& localPosition) {
+    Voxel* voxel;
+    if (positionInBounds(localPosition)) {
+        voxel = getVoxelAt(localPosition);
+    } else {
+        Vec3 worldPosition = this->worldPosition + localPosition;
+        auto neighbour = parentChunk->getNeighbourAt(worldPosition);
+        if (!neighbour) return true;
+        voxel = neighbour->getVoxelAt(worldPosition - neighbour->worldPosition);
+    }
+    if (!voxel) return true;
+    return materials[voxel->materialID].isTransparent;
+}
+
+uint8_t SubChunk::getLightLevelAt(const Vec3& localPosition) {
+    Voxel* voxel;
+    if (positionInBounds(localPosition)) {
+        voxel = getVoxelAt(localPosition);
+    } else {
+        Vec3 worldPosition = this->worldPosition + localPosition;
+        auto neighbour = parentChunk->getNeighbourAt(worldPosition);
+        if (!neighbour) return 0x0F;
+        voxel = neighbour->getVoxelAt(worldPosition - neighbour->worldPosition);
+    }
+    if (!voxel) return 0x0F;
+    return voxel->lightLevel;
+}
+
+void SubChunk::updateLightSources() {
+    forEachVoxel([&](const Vec3& localPosition, Voxel& voxel) {
+        if (voxel.materialID == IDX_AIR) {
+            int topHeight = parentChunk->getHeightAt(Vec2(localPosition.x, localPosition.z)); 
+            if (this->worldPosition.y + localPosition.y >= topHeight) {
+                voxel.lightLevel = 0x0F; // set skylight to maximum
+            } else {
+                voxel.lightLevel = 0x00; // set skylight to minimum
+            }
+        }
+    });
+}
+
+void SubChunk::updateLight() {
+    forEachVoxel([&](const Vec3& localPosition, Voxel& voxel) {
+        if (voxel.materialID == IDX_AIR) {
+            voxel.lightLevel = calculateSkyLightAt(localPosition);
+        }
+    });
+}
+
+// calculate skylight at the given position
+int SubChunk::calculateSkyLightAt(const Vec3& localPosition) {
+    int lightLevel = 15;
+    std::queue<Vec3> positions;
+    std::unordered_set<Vec3, Vec3Hash> visited;
+
+    // Push the initial position
+    positions.push(localPosition);
+    visited.insert(localPosition);
+
+    int positionCounter = positions.size(); // Start with the initial position count
+
+    while (lightLevel > 0 && !positions.empty()) {
+        const Vec3& currPos = positions.front();
+        positions.pop();
+        positionCounter--;
+
+        // Check if the current position is a skylight source
+        if ((getLightLevelAt(currPos) & 0x0F) == 0x0F) {
+            return lightLevel;
+        }
+
+        // Enqueue neighbors
+        for (int face = 0; face < 6; face++) {
+            const Vec3& newPos = currPos + cubeNormals[face];
+
+            if (!positionIsSolid(newPos)) {
+                // Only process unvisited positions
+                if (visited.find(newPos) == visited.end()) {
+                    positions.push(newPos);
+                    visited.insert(newPos);
+                }
+            }
+        }
+
+        // If we've processed all positions at the current level, reduce the light level
+        if (positionCounter == 0) {
+            lightLevel--;
+            positionCounter = positions.size(); // Reset counter for the next level
+        }
+    }
+
+    return 0;
+}
+
 void SubChunk::generateMesh() {
     mesh.vertices.clear();
     mesh.indices.clear();
@@ -96,70 +192,72 @@ void SubChunk::generateMesh() {
     transparentMesh.indices.clear();
     
     forEachVoxel([&](const Vec3& localPosition, const Voxel& voxel) {
-        
-        bool isTransparent = materials[voxel.materialID].isTransparent;
+        if (voxel.materialID != IDX_AIR) {
+            bool isTransparent = materials[voxel.materialID].isTransparent;
             
-        // For each face of the cube
-        for (int face = 0; face < 6; face++) {
-            const Vec3& neighborPos = localPosition + cubeNormals[face];
-            bool faceIsVisible = false;
+            // For each face of the cube
+            for (int face = 0; face < 6; face++) {
+                const Vec3& neighborPos = localPosition + cubeNormals[face];
+                bool faceIsVisible = false;
 
-            if (isTransparent) {
-                faceIsVisible = !positionIsSolid(neighborPos);
-            } else {
-                faceIsVisible = positionIsTransparent(neighborPos);
-            }
-            
-            if (faceIsVisible) {
-                // Transform face vertices to world coordinates
-                int a00a11 = 0, a01a10 = 0;
-                for (int vert = 0; vert < 4; vert++) {
-                    Vertex vertex = cubeVertices[face][vert];
+                if (isTransparent) {
+                    faceIsVisible = !positionIsSolid(neighborPos);
+                } else {
+                    faceIsVisible = positionIsTransparent(neighborPos);
+                }
+                
+                if (faceIsVisible) {
+                    // Transform face vertices to world coordinates
+                    int a00a11 = 0, a01a10 = 0;
+                    for (int vert = 0; vert < 4; vert++) {
+                        Vertex vertex = cubeVertices[face][vert];
+                        
+                        uint8_t lightLevel = getLightLevelAt(neighborPos);
+                        vertex.position += this->worldPosition + localPosition;
+                        vertex.data |= lightLevel << OFFSET_LIGHTLEVEL;
+                        vertex.data |= face << OFFSET_NORMAL;
+                        vertex.data |= voxel.materialID << OFFSET_MATERIALID;
+                        
+                        if (isTransparent) {
+                            vertex.data |= 3 << OFFSET_AO;
+                            transparentMesh.vertices.push_back(vertex);
+                            continue;
+                        }
+                        
+                        int AOvalue = vertexAO(face, vert, localPosition);
+                        vertex.data |= AOvalue << OFFSET_AO;
+                        
+                        if (vert < 2) {
+                            a00a11 += AOvalue;
+                        } else {
+                            a01a10 += AOvalue;
+                        }  
+                        
+                        mesh.vertices.push_back(vertex);
+                    }
                     
-                    vertex.position += this->worldPosition + localPosition;
-                    vertex.data |= (int)voxel.lightLevel << OFFSET_LIGHTLEVEL;
-                    vertex.data |= face << OFFSET_NORMAL;
-                    vertex.data |= (int)voxel.materialID << OFFSET_MATERIALID;
-                    
+                    // Add face indices, offset by current vertex count
+                    GLuint baseIndex = transparentMesh.vertices.size() - 4;
                     if (isTransparent) {
-                        vertex.data |= 3 << OFFSET_AO;
-                        transparentMesh.vertices.push_back(vertex);
+                        for (int i = 0; i < 6; i++) {
+                            transparentMesh.indices.push_back(baseIndex + cubeIndicies[i]);
+                        }
                         continue;
                     }
                     
-                    int AOvalue = vertexAO(face, vert, localPosition);
-                    vertex.data |= AOvalue << OFFSET_AO;
-                    
-                    if (vert < 2) {
-                        a00a11 += AOvalue;
+                    baseIndex = mesh.vertices.size() - 4;
+                    if (a00a11 > a01a10) {
+                        for (int i = 0; i < 6; i++) {
+                            mesh.indices.push_back(baseIndex + cubeIndicies[i]);
+                        }
                     } else {
-                        a01a10 += AOvalue;
-                    }  
-                    
-                    mesh.vertices.push_back(vertex);
-                }
-                
-                // Add face indices, offset by current vertex count
-                GLuint baseIndex = transparentMesh.vertices.size() - 4;
-                if (isTransparent) {
-                    for (int i = 0; i < 6; i++) {
-                        transparentMesh.indices.push_back(baseIndex + cubeIndicies[i]);
-                    }
-                    continue;
-                }
-                
-                baseIndex = mesh.vertices.size() - 4;
-                if (a00a11 > a01a10) {
-                    for (int i = 0; i < 6; i++) {
-                        mesh.indices.push_back(baseIndex + cubeIndicies[i]);
-                    }
-                } else {
-                    for (int i = 0; i < 6; i++) {
-                        mesh.indices.push_back(baseIndex + cubeIndiciesFlipped[i]);
+                        for (int i = 0; i < 6; i++) {
+                            mesh.indices.push_back(baseIndex + cubeIndiciesFlipped[i]);
+                        }
                     }
                 }
             }
-        }
+        }     
     });
     
     isDirty = false;

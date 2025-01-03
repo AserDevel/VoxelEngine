@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
     );
 
     ThreadManager threadManager(4);
-    WorldManager worldManager(threadManager, 10);
+    WorldManager worldManager(threadManager, 5);
     Renderer renderer(worldManager, camera);
 
     float lastFrameTime = SDL_GetTicks() / 1000.0f;

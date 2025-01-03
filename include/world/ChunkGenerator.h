@@ -26,5 +26,7 @@ private:
 
     float generateHeight(const Vec2& worldPosition2D);
 
-    void generateChunk3D(std::shared_ptr<Chunk> chunk);
+    void generateChunk3D(Chunk* chunk);
+
+    void generateSkyLight(Chunk* chunk);
 };

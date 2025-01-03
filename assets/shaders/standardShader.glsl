@@ -17,8 +17,8 @@ vec3 normals[6] = {
 out vec4 baseColor;
 out vec3 fragPos;
 out vec3 normal;
-out float skyLightFactor;
-out float blockLightFactor;
+flat out uint skyLightLevel;
+flat out uint blockLightLevel;
 out float AOfactor;
 
 uniform mat4 matCamera;
@@ -27,9 +27,10 @@ uniform Material materials[256];
 void main() {
     gl_Position = matCamera * vec4(position, 1.0);
 
-    skyLightFactor = float(data & 15) / 15.0;
-    blockLightFactor = float((data >> 4) & 15) / 15.0;
+    skyLightLevel = data & 15;
+    blockLightLevel = (data >> 4) & 15;
     AOfactor = float((data >> 8) & 3);
+    
     normal = normals[(data >> 10) & 7];
     uint materialID = (data >> 13) & 127;
     
@@ -45,15 +46,15 @@ void main() {
 in vec4 baseColor;
 in vec3 fragPos;
 in vec3 normal;
-in float skyLightFactor;
-in float blockLightFactor;
+flat in uint skyLightLevel;
+flat in uint blockLightLevel;
 in float AOfactor;
 
 out vec4 fragColor;
 
 void main() {
-    vec3 ambient = 0.1f * AOfactor * vec3(1, 1, 1);
-    vec3 skyLight = skyLightFactor * vec3(1, 0.9, 0.9);
+    float ambient = 0.1f * AOfactor;
+    float skyLight = skyLightLevel / 16.0f;
 
-    fragColor = baseColor * (vec4(ambient, 1.0) + vec4(skyLight, 1.0));
+    fragColor = baseColor * (ambient + skyLight);
 }

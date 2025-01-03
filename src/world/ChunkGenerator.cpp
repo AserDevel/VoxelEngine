@@ -67,21 +67,21 @@ std::string ChunkGenerator::generateBiome(const Vec2& worldPosition2D, float hei
 }
 
 void ChunkGenerator::generateChunk(Chunk* chunk) {
-    Vec2 worldPosition2D = chunk->chunkPosition2D * chunkSize;
+    Vec2 worldPosition2D = Vec2(chunk->worldPosition.x, chunk->worldPosition.z);
     
     for (int x = 0; x < chunkSize; x++) {
         for (int z = 0; z < chunkSize; z++) {
             const Vec2 wp = worldPosition2D + Vec2(x, z);
             
             int height = generateHeight(wp);
-            chunk->setHeightAt(wp, height);
+            chunk->setHeightAt(Vec2(x, z), height);
 
             std::string biome = generateBiome(wp, height);
 
             Voxel newVoxel;
-            for (int y = 0; y < height || y < waterHeight; y++) {                
+            for (int y = 0; y <= height || y < waterHeight; y++) {                
                 if (biome == "ocean" || biome == "coldOcean") {
-                    if (y == height - 1) {
+                    if (y == height) {
                         newVoxel.materialID = IDX_SAND;
                     } else if (y < height) {
                         newVoxel.materialID = IDX_STONE;
@@ -93,7 +93,7 @@ void ChunkGenerator::generateChunk(Chunk* chunk) {
                     continue;
                 }
 
-                if (y == height - 1) {
+                if (y == height) {
                     newVoxel.materialID = IDX_GRASS;
                 } else if (y > height -3) {
                     newVoxel.materialID = IDX_DIRT;
@@ -109,7 +109,7 @@ void ChunkGenerator::generateChunk(Chunk* chunk) {
     chunk->state = ChunkState::GENERATED;
 }
 
-void ChunkGenerator::generateChunk3D(std::shared_ptr<Chunk> chunk) {
+void ChunkGenerator::generateChunk3D(Chunk* chunk) {
     Vec3 wp = chunk->worldPosition;
     Voxel newVoxel;
     for (double x = 0; x < chunkSize; x++) {

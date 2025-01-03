@@ -120,55 +120,6 @@ void Renderer::propagateLight(const Vec3& sourceWorldPosition, uint8_t initialLi
 }
 */
 
-/*
-int Renderer::getSkyLightLevel(SubChunk& chunk, const Vec3& localPosition) {
-    int lightLevel = 15;
-    std::queue<Vec3> positions;
-    std::unordered_set<int> visited;
-
-    // Push the initial position
-    positions.push(localPosition);
-    visited.insert(chunk.positionToIndex(localPosition));
-
-    int positionCounter = positions.size(); // Start with the initial position count
-
-    while (lightLevel > 0 && !positions.empty()) {
-        const Vec3& currPos = positions.front();
-        positions.pop();
-        positionCounter--;
-
-        // Check height map once per position
-        int heightAtColumn = chunk.heightMap[(int)currPos.x][(int)currPos.z];
-        if (heightAtColumn == (int)(currPos.y + chunk->worldPosition.y)) {
-            return lightLevel;
-        }
-
-        // Enqueue neighbors
-        for (int face = 0; face < 6; face++) {
-            const Vec3& newPos = currPos + cubeNormals[face];
-
-            if (chunk->positionInBounds(newPos) && !chunk->positionIsSolid(newPos)) {
-                // Only process unvisited positions
-                int idx = chunk->positionToIndex(newPos);
-                if (visited.find(idx) == visited.end()) {
-                    positions.push(newPos);
-                    visited.insert(idx);
-                }
-            }
-        }
-
-        // If we've processed all positions at the current level, reduce the light level
-        if (positionCounter == 0) {
-            lightLevel--;
-            positionCounter = positions.size(); // Reset counter for the next level
-        }
-    }
-
-    return lightLevel;
-}
-*/
-
-
 void Renderer::generateShadowMaps() {
     // light setup
     Vec3 lightUp = Vec3(0, 1, 0);

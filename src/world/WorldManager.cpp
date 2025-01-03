@@ -7,6 +7,32 @@ Vec2 WorldManager::worldToChunkPosition(const Vec3& worldPosition) const {
     return Vec2(x, z);
 }
 
+Vec3 WorldManager::chunkToWorldPosition(const Vec2& chunkPosition) const {
+    return Vec3(chunkPosition.x * chunkSize, MAX_DEPTH, chunkPosition.z * chunkSize);
+}
+
+void WorldManager::removeChunk(const Vec2& chunkPosition2D) {
+    chunkCache.erase(chunkPosition2D);
+}
+
+// Chunk management
+Chunk* WorldManager::addChunk(const Vec2& chunkPosition2D) {
+    chunkCache[chunkPosition2D] = std::make_unique<Chunk>(this, chunkToWorldPosition(chunkPosition2D));
+    return chunkCache[chunkPosition2D].get();
+}
+
+Chunk* WorldManager::getChunk(const Vec2& chunkPosition2D) const {
+    auto it = chunkCache.find(chunkPosition2D);
+    if (it != chunkCache.end()) {
+        return it->second.get();
+    }
+    return nullptr;
+}
+
+bool WorldManager::chunkInCache(const Vec2& chunkPosition2D) {
+    return chunkCache.find(chunkPosition2D) != chunkCache.end();
+}
+
 void WorldManager::updateChunks(Vec3 worldCenter) {
     Vec2 worldCenter2D = Vec2(worldCenter.x, worldCenter.z);
     Vec2 centerChunkPos = worldToChunkPosition(worldCenter);
@@ -30,7 +56,7 @@ void WorldManager::updateChunks(Vec3 worldCenter) {
                 chunk = addChunk(chunkPos);
                 chunkGenerator.generateChunk(chunk);
             } else {
-                chunk = getChunkAt(chunkPos);
+                chunk = getChunk(chunkPos);
             }
 
             if (chunk->state == ChunkState::PENDING || !neighboursReady(chunk)) continue;
@@ -39,12 +65,14 @@ void WorldManager::updateChunks(Vec3 worldCenter) {
             if (chunk->state == ChunkState::GENERATED) {
                 chunk->state = ChunkState::PENDING;
                 threadManager.addTask([this, chunk]() {
+                    chunk->updateSkyLight();
                     chunk->generateMeshes();
                 });
                 continue;
             }
             
             if (chunk->isDirty) {    
+                chunk->updateSkyLight();
                 chunk->generateMeshes();
             }
 
@@ -58,9 +86,9 @@ void WorldManager::updateChunks(Vec3 worldCenter) {
 bool WorldManager::neighboursReady(Chunk* chunk) {
     if (!chunk) return false;
     
-    Vec2 neighbourDirs[8] = { Vec2(1, 0), Vec2(-1, 0), Vec2(0, 1), Vec2(0, -1), Vec2(1, 1), Vec2(1, -1), Vec2(-1, 1), Vec2(-1, -1) };    
+    Vec2 neighbourPositions[8] = { Vec2(1, 0), Vec2(-1, 0), Vec2(0, 1), Vec2(0, -1), Vec2(1, 1), Vec2(1, -1), Vec2(-1, 1), Vec2(-1, -1) };    
     for (int i = 0; i < 8; i++) {
-        auto neighbourChunk = getChunkAt(chunk->chunkPosition2D + neighbourDirs[i]);
+        auto neighbourChunk = getChunk(worldToChunkPosition(chunk->worldPosition) + neighbourPositions[i]);
         if (neighbourChunk == nullptr) {
             return false;
         } else {
@@ -70,6 +98,17 @@ bool WorldManager::neighboursReady(Chunk* chunk) {
 
     return true;
 }
+
+/*
+void WorldManager::propagateLight(const Vec3& sourceWorldPosition, uint8_t initialLightLevel) {
+    std::unordered_set<Vec3, Vec3Hash> visited;
+
+    auto startingChunk = getChunkAt(sourceWorldPosition);
+    if (startingChunk) {
+        startingChunk->propagateLight(sourceWorldPosition, initialLightLevel, visited);
+    }
+}
+*/
 
 std::vector<Chunk*> WorldManager::getLoadedChunks() {
     std::vector<Chunk*> loadedChunks;
@@ -81,77 +120,41 @@ std::vector<Chunk*> WorldManager::getLoadedChunks() {
     return loadedChunks;
 }
 
-void WorldManager::removeChunk(const Vec2& chunkPosition2D) {
-    chunkCache.erase(chunkPosition2D);
-}
-
-// Chunk management
-Chunk* WorldManager::addChunk(const Vec2& chunkPosition2D) {
-    chunkCache[chunkPosition2D] = std::make_unique<Chunk>(this, chunkPosition2D);
-    return chunkCache[chunkPosition2D].get();
-}
-
-Chunk* WorldManager::getChunkAt(const Vec2& chunkPosition2D) const {
-    auto it = chunkCache.find(chunkPosition2D);
+Chunk* WorldManager::getChunkAt(const Vec3& worldPosition) const {
+    if (worldPosition.y < MAX_DEPTH || worldPosition.y >= MAX_HEIGHT) return nullptr;
+    auto it = chunkCache.find(worldToChunkPosition(worldPosition));
     if (it != chunkCache.end()) {
         return it->second.get();
     }
     return nullptr;
 }
 
-bool WorldManager::chunkInCache(const Vec2& chunkPosition2D) {
-    return chunkCache.find(chunkPosition2D) != chunkCache.end();
-}
-
 // Voxel operations
 void WorldManager::addVoxel(const Vec3& worldPosition, const Voxel& voxel) {
-    auto chunk = getChunkAt(worldToChunkPosition(worldPosition));
+    auto chunk = getChunkAt(worldPosition);
     if (chunk == nullptr) {
         std::cerr << "Error adding voxel at world level" << std::endl;
         return;
     }
-    if (chunk->addVoxel(worldPosition, voxel)) {
-        for (int i = 0; i < 4; i++) {
-            auto neighbourVoxelPos = worldPosition + cubeNormals[i];
-            auto neighbour = getChunkAt(worldToChunkPosition(neighbourVoxelPos));
-            if (neighbour == nullptr) continue;
-            if (chunk != neighbour && neighbour->positionIsSolid(neighbourVoxelPos)) {
-                neighbour->markDirty(neighbourVoxelPos);
-            }
-        }
-    }
+    chunk->addVoxel(worldPosition, voxel);
 }
 
 void WorldManager::removeVoxel(const Vec3& worldPosition) {
-    auto chunk = getChunkAt(worldToChunkPosition(worldPosition));
+    auto chunk = getChunkAt(worldPosition);
     if (chunk == nullptr) {
         std::cerr << "Error removing voxel at world level" << std::endl;
         return;
     }
-    if (chunk->removeVoxel(worldPosition)) {
-        for (int i = 0; i < 4; i++) {
-            auto neighbourVoxelPos = worldPosition + cubeNormals[i];
-            auto neighbour = getChunkAt(worldToChunkPosition(neighbourVoxelPos));
-            if (neighbour == nullptr) continue;
-            if (chunk != neighbour && neighbour->positionIsSolid(neighbourVoxelPos)) {
-                neighbour->markDirty(neighbourVoxelPos);
-            }
-        }
+    chunk->removeVoxel(worldPosition);
+}
+
+Voxel* WorldManager::getVoxelAt(const Vec3& worldPosition) {
+    auto chunk = getChunkAt(worldPosition);
+    if (chunk == nullptr) {
+        std::cerr << "Error getting voxel at world level" << std::endl;
+        return nullptr;
     }
-}
-
-bool WorldManager::positionIsSolid(const Vec3& worldPosition) const {
-    if (worldPosition.y < MAX_DEPTH || worldPosition.y > MAX_HEIGHT) return false;
-    auto chunk = getChunkAt(worldToChunkPosition(worldPosition));
-    if (chunk == nullptr) return false;
-    return chunk->positionIsSolid(worldPosition);
-}
-
-bool WorldManager::positionIsTransparent(const Vec3& worldPosition) const {
-    if (worldPosition.y < MAX_DEPTH || worldPosition.y > MAX_HEIGHT) return true;
-    auto chunk = getChunkAt(worldToChunkPosition(worldPosition));
-    if (chunk == nullptr) return true;
-    return chunk->positionIsTransparent(worldPosition);
+    return chunk->getVoxelAt(worldPosition);
 }
 
 bool WorldManager::worldRayDetection(const Vec3& startPoint, const Vec3& endPoint, Vec3& voxelPos, Vec3& normal) {
@@ -167,7 +170,8 @@ bool WorldManager::worldRayDetection(const Vec3& startPoint, const Vec3& endPoin
     normal = Vec3(0, 0, 0);
     while (tEntry <= rayLength) {
 
-        if (positionIsSolid(voxelPos)) {
+        auto voxel = getVoxelAt(voxelPos);
+        if (voxel && voxel->materialID != IDX_AIR) {
             return true;
         }
 
