@@ -46,10 +46,6 @@ public:
 private:
     void loadCenterMarker();
 
-    void propagateLight(const Vec3& sourceWorldPosition, uint8_t initialLightLevel);
-
-    int getSkyLightLevel(SubChunk& chunk, const Vec3& localPosition);
-
     void initShadowMaps();
 
     void generateShadowMaps();

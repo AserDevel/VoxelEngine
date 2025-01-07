@@ -37,8 +37,8 @@ bool initializeWindow(SDL_Window** window, SDL_GLContext* context) {
         return false;
     }
 
-    //SDL_ShowCursor(SDL_DISABLE);
-    //SDL_SetRelativeMouseMode(SDL_TRUE);
+    SDL_ShowCursor(SDL_DISABLE);
+    SDL_SetRelativeMouseMode(SDL_TRUE);
 
     *context = SDL_GL_CreateContext(*window);
     if (!*context) {
@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
     );
 
     ThreadManager threadManager(4);
-    WorldManager worldManager(threadManager, 5);
+    WorldManager worldManager(threadManager, 8);
     Renderer renderer(worldManager, camera);
 
     float lastFrameTime = SDL_GetTicks() / 1000.0f;
@@ -143,7 +143,7 @@ int main(int argc, char* argv[]) {
                     Vec3 voxelPos;
                     Vec3 normal;
                     if (worldManager.worldRayDetection(startPoint, endPoint, voxelPos, normal)) {
-                        worldManager.addVoxel(voxelPos + normal, {1,0});
+                        worldManager.addVoxel(voxelPos + normal, {1, 0, 0});
                     }
                 }
                 break;

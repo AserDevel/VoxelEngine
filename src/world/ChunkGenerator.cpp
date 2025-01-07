@@ -68,28 +68,28 @@ std::string ChunkGenerator::generateBiome(const Vec2& worldPosition2D, float hei
 
 void ChunkGenerator::generateChunk(Chunk* chunk) {
     Vec2 worldPosition2D = Vec2(chunk->worldPosition.x, chunk->worldPosition.z);
-    
+
     for (int x = 0; x < chunkSize; x++) {
         for (int z = 0; z < chunkSize; z++) {
-            const Vec2 wp = worldPosition2D + Vec2(x, z);
+            Vec2 wp2D = worldPosition2D + Vec2(x, z);
             
-            int height = generateHeight(wp);
-            chunk->setHeightAt(Vec2(x, z), height);
+            int height = generateHeight(wp2D);
+            std::string biome = generateBiome(wp2D, height);
 
-            std::string biome = generateBiome(wp, height);
+            int top = std::max(height, waterHeight);
+            for (int y = top; y >= 0; y--) {     
+                Voxel newVoxel = {0, 0, 0};
 
-            Voxel newVoxel;
-            for (int y = 0; y <= height || y < waterHeight; y++) {                
                 if (biome == "ocean" || biome == "coldOcean") {
-                    if (y == height) {
-                        newVoxel.materialID = IDX_SAND;
-                    } else if (y < height) {
-                        newVoxel.materialID = IDX_STONE;
-                    } else {
+                    if (y > height) {
                         newVoxel.materialID = IDX_WATER;
+                    } else if (y == height) {
+                        newVoxel.materialID = IDX_SAND;
+                    } else {
+                        newVoxel.materialID = IDX_STONE;
                     }
                     
-                    chunk->addVoxel(Vec3(wp.x, y, wp.z), newVoxel);
+                    chunk->addVoxel(Vec3(wp2D.x, y, wp2D.z), newVoxel);
                     continue;
                 }
 
@@ -101,8 +101,9 @@ void ChunkGenerator::generateChunk(Chunk* chunk) {
                     newVoxel.materialID = IDX_STONE;
                 }
         
-                chunk->addVoxel(Vec3(wp.x, y, wp.z), newVoxel);
+                chunk->addVoxel(Vec3(wp2D.x, y, wp2D.z), newVoxel);
             }
+            chunk->setHeightAt(wp2D, height);
         }
     }
     

@@ -2,7 +2,7 @@
 
 #include "glad/glad.h"
 #include "utilities/standard.h"
-#include "world/Materials.h"
+#include "world/Voxels.h"
 
 struct LightData {
     Vec3 position;

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "ChunkGenerator.h"
+#include "ChunkMeshGenerator.h"
+#include "LightGenerator.h"
 #include "utilities/ThreadManager.h"
 
 class WorldManager {
@@ -10,41 +12,44 @@ private:
     int updateDistance;
 
     ChunkGenerator chunkGenerator;
-
+    ChunkMeshGenerator meshGenerator;
+    LightGenerator lightGenerator;
     ThreadManager& threadManager;
 
-    // Utility functions
-    Vec2 worldToChunkPosition(const Vec3& worldPosition) const;    
-    Vec3 chunkToWorldPosition(const Vec2& chunkPosition) const;
+    // position converters
+    Vec2 worldToChunkPosition(const Vec3& worldPosition) const;
+    Vec2 worldToChunkPosition(const Vec2& worldPosition2D) const;    
+    
+    // utility functions
+    bool neighboursReady(Chunk* chunk);
+    void updateSkyLightAt(const Vec2 worldPosition2D);
 
     // Chunk management
-    void removeChunk(const Vec2& chunkPosition2D);
     Chunk* addChunk(const Vec2& chunkPosition2D);
     Chunk* getChunk(const Vec2& chunkPosition2D) const;
+    void removeChunk(const Vec2& chunkPosition2D);
     bool chunkInCache(const Vec2& chunkPosition2D);
-
-    bool neighboursReady(Chunk* chunk);
 
 public:
     WorldManager(ThreadManager& threadManager, int updateDistance)
-        : updateDistance(updateDistance), threadManager(threadManager), chunkGenerator(ChunkGenerator()) {}
+        : updateDistance(updateDistance), threadManager(threadManager), meshGenerator(*this), lightGenerator(*this) {}
 
     // Updates all chunks in the a set range of the camera
     void updateChunks(Vec3 worldCenter);
 
-    void generateLighting(Chunk* chunk);
-
-    void propagateLight(const Vec3& sourceWorldPosition, uint8_t initialLightLevel);
-
     // Returns all chunks that are loaded and ready to be rendered
     std::vector<Chunk*> getLoadedChunks();
-    
-    Chunk* getChunkAt(const Vec3& worldPosition) const;
+    void markDirty(const Vec3& worldPosition);
 
     // Global voxel operations
     void addVoxel(const Vec3& worldPosition, const Voxel& voxel);
     void removeVoxel(const Vec3& worldPosition);
     Voxel* getVoxelAt(const Vec3& worldPosition);
+
+    // Position checking
+    bool positionIsSolid(const Vec3& worldPosition);
+    bool positionIsTransparent(const Vec3& worldPosition);
+    uint8_t getLightLevelAt(const Vec3& worldPosition);
 
     // Physics
     bool worldRayDetection(const Vec3& startPoint, const Vec3& endPoint, Vec3& voxelPos, Vec3& normal);                                        
