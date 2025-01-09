@@ -36,10 +36,10 @@ inline float smoothstep(float edge0, float edge1, float x) {
 }
 
 // higher t means less of a and more of b
-//float mix(float a, float b, float t) {
-//    t = clamp(t, 0.0f, 1.0f);
-//    return a * (1.0f - t) + b * t;
-//}
+inline float mix(float a, float b, float t) {
+    t = clamp(t, 0.0f, 1.0f);
+    return a * (1.0f - t) + b * t;
+}
 
 
 #endif

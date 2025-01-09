@@ -28,6 +28,10 @@ void ChunkMeshGenerator::generateSubChunkMesh(SubChunk* subChunk) {
 
                 if (isTransparent) {
                     faceIsVisible = !worldManager.positionIsSolid(neighborPos);
+                    if (voxel.materialID == IDX_WATER && face == 4 &&
+                        worldManager.getVoxelAt(neighborPos)->materialID != IDX_WATER ) {
+                        faceIsVisible = true;
+                    } 
                 } else {
                     faceIsVisible = worldManager.positionIsTransparent(neighborPos);
                 }
@@ -38,7 +42,7 @@ void ChunkMeshGenerator::generateSubChunkMesh(SubChunk* subChunk) {
                     for (int vert = 0; vert < 4; vert++) {
                         Vertex vertex = cubeVertices[face][vert];
                         
-                        uint8_t lightLevel = worldManager.getLightLevelAt(neighborPos);
+                        uint8_t lightLevel = vertexLightLevel(face, vert, worldPosition);
                         vertex.position += worldPosition;
                         vertex.data |= lightLevel << OFFSET_LIGHTLEVEL;
                         vertex.data |= face << OFFSET_NORMAL;
@@ -46,6 +50,7 @@ void ChunkMeshGenerator::generateSubChunkMesh(SubChunk* subChunk) {
                         
                         if (isTransparent) {
                             vertex.data |= 3 << OFFSET_AO;
+                            vertex.position.y -= 0.125;
                             subChunk->transparentMesh.vertices.push_back(vertex);
                             continue;
                         }
@@ -89,9 +94,9 @@ void ChunkMeshGenerator::generateSubChunkMesh(SubChunk* subChunk) {
     subChunk->isDirty = false;
 }
 
-int ChunkMeshGenerator::vertexAO(int i, int v, const Vec3& voxelPos) {
-    Vec3 normal = cubeNormals[i];
-    Vec3 position = sign(cubeVertices[i][v].position);
+int ChunkMeshGenerator::vertexAO(int n, int v, const Vec3& voxelPos) {
+    Vec3 normal = cubeNormals[n];
+    Vec3 position = sign(cubeVertices[n][v].position);
 
     Vec3 side1Pos, side2Pos, cornerPos;
 
@@ -118,3 +123,46 @@ int ChunkMeshGenerator::vertexAO(int i, int v, const Vec3& voxelPos) {
     
     return 3 - (side1 + side2 + corner);
 }
+
+uint8_t ChunkMeshGenerator::vertexLightLevel(int n, int v, const Vec3& voxelPos) {
+    Vec3 normal = cubeNormals[n];
+    Vec3 position = sign(cubeVertices[n][v].position);
+
+    Vec3 adjacents[4];
+    if (normal.x != 0) {
+        adjacents[0] = Vec3(normal.x, 0, 0);
+        adjacents[1] = Vec3(normal.x, position.y, 0);
+        adjacents[2] = Vec3(normal.x, 0, position.z);
+        adjacents[3] = Vec3(normal.x, position.y, position.z); 
+    } else if (normal.y != 0) {
+        adjacents[0] = Vec3(0, normal.y, 0);
+        adjacents[1] = Vec3(position.x, normal.y, 0);
+        adjacents[2] = Vec3(0, normal.y, position.z);
+        adjacents[3] = Vec3(position.x, normal.y, position.z);
+    } else {
+        adjacents[0] = Vec3(0, 0, normal.z);
+        adjacents[1] = Vec3(position.x, 0, normal.z);
+        adjacents[2] = Vec3(0, position.y, normal.z);
+        adjacents[3] = Vec3(position.x, position.y, normal.z);
+    }
+
+    uint8_t samples = 0;
+    uint8_t skyLight = 0;
+    uint8_t blockLight = 0;
+    for (int n = 0; n < 4; n++) {
+        Vec3 pos = voxelPos + adjacents[n];
+        if (worldManager.positionIsTransparent(pos)) {
+            samples++;
+            uint8_t lightLevel = worldManager.getLightLevelAt(pos);
+            skyLight += lightLevel & 0x0F;
+            blockLight += (lightLevel >> 4) & 0x0F;
+        }
+    }
+
+    if (samples == 0) return 0;
+    skyLight /= samples;
+    blockLight /= samples;
+
+    return skyLight + (blockLight << 4);
+}
+

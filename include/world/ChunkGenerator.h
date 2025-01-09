@@ -2,6 +2,7 @@
 
 #include "utilities/PerlinNoise.h"
 #include "Chunk.h"
+#include "Biomes.h"
 
 class ChunkGenerator {
 public:
@@ -13,7 +14,7 @@ public:
 private:
     int updateDistance = 4;
 
-    const int waterHeight = 75;
+    const int waterHeight = 112;
 
     PerlinNoise perlin;
     PerlinNoise perlinHumid;
@@ -22,9 +23,11 @@ private:
 
     static const int chunkSize = SUBCHUNK_SIZE;
 
-    std::string generateBiome(const Vec2& worldPosition2D, float height);
+    BiomeType getBiome(float height, float humid, float temp);
 
-    float generateHeight(const Vec2& worldPosition2D);
+    float generateWorldHeight(const Vec2& worldPosition2D, BiomeType biome, float height);
+
+    Voxel generateVoxel(const Vec3& worldPositiom, BiomeType biome, int worldHeight);
 
     void generateChunk3D(Chunk* chunk);
 };

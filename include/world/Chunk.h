@@ -9,8 +9,8 @@
 #define MAX_DEPTH 0
 
 enum class ChunkState {
-    PENDING,
     GENERATED,
+    PENDING,
     MESHED,
     LOADED,
 };
@@ -26,6 +26,10 @@ private:
 
     int worldToChunkHeight(int worldHeight) const;
 
+    // Subchunk management
+    SubChunk* addSubChunk(int worldHeight);
+    SubChunk* getSubChunk(int worldHeight) const;
+
 public:
     const Vec3 worldPosition; 
     bool isDirty = true;
@@ -38,10 +42,6 @@ public:
     Chunk(Vec3 worldPosition) 
         : worldPosition(worldPosition) {}
     ~Chunk() {}
-
-    // Subchunk management
-    SubChunk* addSubChunk(int worldHeight);
-    SubChunk* getSubChunk(int worldHeight) const;
 
     void markDirty(const Vec3& worldPosition);
 

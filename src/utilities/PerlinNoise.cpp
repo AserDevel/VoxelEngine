@@ -1,5 +1,4 @@
 #include "utilities/PerlinNoise.h"
-#include "utilities/standard.h"
 
 // Default constructor initializes with a random seed
 PerlinNoise::PerlinNoise() {
@@ -108,4 +107,29 @@ double PerlinNoise::noise(double x, double y, double z) const {
                                   grad(permutation[bab], x - 1, y, z - 1)),
                           lerp(u, grad(permutation[abb], x, y - 1, z - 1),
                                   grad(permutation[bbb], x - 1, y - 1, z - 1))));
+}
+
+
+double PerlinNoise::octaveNoise(double x, double z, int octaves, double persistence, double scale, Vec2 offset) {
+    double total = 0.0f;
+    double frequency = 1.0f;
+    double amplitude = 1.0f;
+    double maxAmplitude = 0.0f; // Used for normalization
+
+    for (int i = 0; i < octaves; i++) {
+        // Add offset to avoid symmetry
+        double nx = (x + offset.x) * frequency * scale;
+        double nz = (z + offset.y) * frequency * scale;
+
+        // Add Perlin noise with current frequency and amplitude
+        total += noise(nx, nz) * amplitude;
+
+        // Increase frequency and decrease amplitude for next octave
+        frequency *= 2.0f;
+        amplitude *= persistence;
+        maxAmplitude += amplitude;
+    }
+
+    // Normalize result to [0, 1]
+    return total / maxAmplitude;
 }

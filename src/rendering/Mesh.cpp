@@ -3,7 +3,6 @@
 #include <sstream>
 #include <tuple>
 #include <map>
-#include "world/Materials.h"
 
 const Vertex cubeVertices[6][4] {
     // +X face

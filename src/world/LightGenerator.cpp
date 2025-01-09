@@ -25,7 +25,7 @@ uint8_t LightGenerator::calculateLightAt(const Vec3& worldPosition) {
         for (int face = 0; face < 6; face++) {
             const Vec3& newPos = currPos + cubeNormals[face];
 
-            if (!worldManager.positionIsSolid(newPos)) {
+            if (worldManager.positionIsTransparent(newPos)) {
                 // Only process unvisited positions
                 if (visited.find(newPos) == visited.end()) {
                     positions.push(newPos);
@@ -78,13 +78,14 @@ void LightGenerator::removeLight(const Vec3& worldPosition, uint8_t lightLevel) 
         for (int face = 0; face < 6; face++) {
             const Vec3& newPos = currPos + cubeNormals[face];
 
-            if (worldManager.positionIsSolid(newPos)) continue;
-
-            // Only process unvisited positions
-            if (visited.find(newPos) == visited.end()) {
-                positions.push(newPos);
-                visited.insert(newPos);
+            if (worldManager.positionIsTransparent(newPos)) {
+                // Only process unvisited positions
+                if (visited.find(newPos) == visited.end()) {
+                    positions.push(newPos);
+                    visited.insert(newPos);
+                }
             }
+            
         }
     }
 }
@@ -111,7 +112,7 @@ void LightGenerator::propagateLight(const Vec3& worldPosition, uint8_t lightLeve
         positionCounter--;
 
         Voxel* voxel = worldManager.getVoxelAt(currPos);
-        if (!voxel || lightLevel < voxel->lightLevel) continue;
+        if (!voxel || lightLevel <= voxel->lightLevel) continue;
 
         voxel->lightLevel = lightLevel;
         worldManager.markDirty(currPos);
@@ -120,12 +121,12 @@ void LightGenerator::propagateLight(const Vec3& worldPosition, uint8_t lightLeve
         for (int face = 0; face < 6; face++) {
             const Vec3& newPos = currPos + cubeNormals[face];
 
-            if (worldManager.positionIsSolid(newPos)) continue;
-
-            // Only process unvisited positions
-            if (visited.find(newPos) == visited.end()) {
-                positions.push(newPos);
-                visited.insert(newPos);
+            if (worldManager.positionIsTransparent(newPos)) {
+                // Only process unvisited positions
+                if (visited.find(newPos) == visited.end()) {
+                    positions.push(newPos);
+                    visited.insert(newPos);
+                }
             }
         }
     }

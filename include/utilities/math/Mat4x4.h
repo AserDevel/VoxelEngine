@@ -1,8 +1,6 @@
 #ifndef MAT4X4_H
 #define MAT4X4_H
 
-#include "Vec2.h"
-#include "Vec3.h"
 #include "Vec4.h"
 #include "Quat.h"
 #include <array>

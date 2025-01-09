@@ -17,8 +17,8 @@ vec3 normals[6] = {
 out vec4 baseColor;
 out vec3 fragPos;
 out vec3 normal;
-flat out uint skyLightLevel;
-flat out uint blockLightLevel;
+out float skyLightFactor;
+out float blockLightFactor;
 out float AOfactor;
 
 uniform mat4 matCamera;
@@ -27,8 +27,8 @@ uniform Material materials[256];
 void main() {
     gl_Position = matCamera * vec4(position, 1.0);
 
-    skyLightLevel = data & 15;
-    blockLightLevel = (data >> 4) & 15;
+    skyLightFactor = float(data & 15) / 15.0;
+    blockLightFactor = float((data >> 4) & 15) / 15.0;
     AOfactor = float((data >> 8) & 3);
     
     normal = normals[(data >> 10) & 7];
@@ -39,22 +39,32 @@ void main() {
     fragPos = position;
 }
 
-
 #shader fragment
 #version 430 core
 
 in vec4 baseColor;
 in vec3 fragPos;
 in vec3 normal;
-flat in uint skyLightLevel;
-flat in uint blockLightLevel;
+in float skyLightFactor;
+in float blockLightFactor;
 in float AOfactor;
+
+uniform vec3 skyLightDir;
+uniform vec3 skyLightColor;
 
 out vec4 fragColor;
 
 void main() {
-    float ambient = 0.1f * AOfactor;
-    float skyLight = skyLightLevel / 16.0f;
+    // Add directional light (sun/moon)
+    vec3 lightDir = -skyLightDir; // Sunlight direction
 
-    fragColor = baseColor * (ambient + skyLight);
+    // ambient lighting
+    vec3 ambient = 0.1f * AOfactor * vec3(1, 1, 1);
+
+    // skyLight
+    float lambert = max(dot(normal, lightDir), 0.0);
+    float halfLambert = lambert * 0.5 + 0.5;
+    vec3 skyLight = halfLambert * skyLightFactor * skyLightColor;
+
+    fragColor = baseColor * vec4((ambient + skyLight), 1.0);
 }

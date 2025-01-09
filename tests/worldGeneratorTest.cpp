@@ -2,21 +2,22 @@
 #include <vector>
 #include <cmath>
 #include <iostream>
+#include <math.h>
 #include "utilities/PerlinNoise.h"
 #include "utilities/standard.h"
 
-PerlinNoise perlinHeight = PerlinNoise();
+PerlinNoise perlin = PerlinNoise();
 
 float generateHeight(float x, float z) {
     float frequency = 1.0f / 16;
     float amplitude = 4.0f;
 
     // general heightmap
-    float height = 100.0f * perlinHeight.noise(x * 0.002f, z * 0.002f);
+    float height = 100.0f * perlin.noise(x * 0.002f, z * 0.002f);
 
     // generate more detailed terrain
     for (int i = 0; i < 3; i++) {
-        height += amplitude * perlinHeight.noise(x * frequency, z * frequency);
+        height += amplitude * perlin.noise(x * frequency, z * frequency);
         frequency *= 0.5f;
         amplitude *= 2.0f;
     }
@@ -25,7 +26,7 @@ float generateHeight(float x, float z) {
     float mountainThreshold = 0.3f;
     frequency = 0.1f / 16;
     amplitude = 50.0f;
-    float mountainHeight = perlinHeight.noise(x * frequency, z * frequency);
+    float mountainHeight = perlin.noise(x * frequency, z * frequency);
     mountainHeight = amplitude * smoothstep(mountainThreshold - 0.2f, mountainThreshold + 0.2f, mountainHeight);
 
     /*
@@ -41,13 +42,22 @@ float generateHeight(float x, float z) {
     return height;
 }
 
-PerlinNoise perlinTemp = PerlinNoise();
-PerlinNoise perlinHumid = PerlinNoise();
+struct Biome {
+    Vec3 biomeColor;
+    float minHeight, maxHeight;
+    float minHumid, maxHumid;
+    float minTemp, maxTemp;  
+
+    Biome() {};
+    Biome(Vec3 color, float minHeight, float maxHeight, float minHumid, float maxHumid, float minTemp, float maxTemp)
+        : biomeColor(color), minHeight(minHeight), maxHeight(maxHeight), 
+          minHumid(minHumid), maxHumid(maxHumid), minTemp(minTemp), maxTemp(maxTemp) {}
+};
 
 Vec3 generateBiome(float x, float z, float height) {
     float biomeFrequency = 0.001f;
-    float temp = perlinTemp.noise(x * biomeFrequency, z * biomeFrequency) * 0.5f + 0.5f; // [0,1]
-    float humid = perlinHumid.noise(x * biomeFrequency, z * biomeFrequency) * 0.5f + 0.5f; // [0,1]
+    float temp = perlin.noise(x * biomeFrequency, z * biomeFrequency) * 0.5f + 0.5f; // [0,1]
+    float humid = perlin.noise(x * biomeFrequency, z * biomeFrequency) * 0.5f + 0.5f; // [0,1]
 
     Vec3 color;
 
@@ -68,7 +78,7 @@ Vec3 generateBiome(float x, float z, float height) {
 }
 
 // Generate the height map as an SDL texture
-SDL_Texture* GenerateHeightMap(SDL_Renderer* renderer, int width, int height) {
+SDL_Texture* GenerateMap(SDL_Renderer* renderer, int width, int height) {
     // Create an SDL surface to hold pixel data
     SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32, SDL_PIXELFORMAT_RGBA32);
     if (!surface) {
@@ -82,23 +92,107 @@ SDL_Texture* GenerateHeightMap(SDL_Renderer* renderer, int width, int height) {
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             // Generate height value (example noise function)
-            float fx = static_cast<float>(x);
-            float fy = static_cast<float>(y);
+            float fx = static_cast<float>(x) * 5;
+            float fy = static_cast<float>(y) * 5;
 
-            // Map heightValue to grayscale (0-255)
-            float heightValue = generateHeight(fx*10, fy*10);
-            heightValue = clamp(heightValue, 0, 255);
-            Uint8 grayscale = static_cast<Uint8>(heightValue);
+            float height = 0.5 + 0.2 * perlin.octaveNoise(fx, fy, 5, 0.6, 0.002);
 
-            Vec3 biomeColors = generateBiome(fx*10, fy*10, heightValue);
+            float humid = 0.5 + 0.5 * perlin.octaveNoise(fx, fy, 3, 0.5, 0.002, Vec2(1000, 1000));
 
+            float temp = 0.5 + 0.5 * perlin.octaveNoise(fx, fy, 3, 0.5, 0.0015, Vec2(-1000, -1000));
+
+            float blendingThreshold = 0.01;
+
+            Vec3 biomeColors;
+            Vec3 mountainColor = Vec3(0.3, 0.3, 0.3);
+            Vec3 oceanColor = Vec3(0, 0, 1);
+            Vec3 rainForestColor = Vec3(0, 0.8, 0);
+            Vec3 forestColor = Vec3(0, 0.6, 0);
+            Vec3 taigaColor = Vec3(0, 0.4, 0);
+            Vec3 dessertColor = Vec3(1, 1, 0);
+            Vec3 plainsColor = Vec3(0, 1, 0);
+            Vec3 snowColor = Vec3(1, 1, 1);
+            
+            std::string biome;
+            if (height > 0.6) {
+                biome = "mountains";
+                biomeColors = mountainColor;
+            } else if (height < 0.45) {
+                biome = "ocean";
+                biomeColors = oceanColor;
+            } else {
+                if (humid > 0.5) {
+                    if (temp > 0.66) {
+                        biome = "rainForest";
+                        biomeColors = rainForestColor;
+                    } else if (temp > 0.33) {
+                        biome = "forest";
+                        biomeColors = forestColor;
+                    } else {
+                        biome = "taiga";
+                        biomeColors = taigaColor;
+                    }
+                } else {
+                    if (temp > 0.66) {
+                        biome = "dessert";
+                        biomeColors = dessertColor;
+                    } else if (temp > 0.33) {
+                        biome = "plains";
+                        biomeColors = plainsColor;
+                    } else {
+                        biome = "snow";
+                        biomeColors = snowColor;
+                    }
+                }
+            }
+
+            bool isLand = biome != "mountains" && biome != "ocean";
+
+            float blendHumidFactor = 0.5 * (humid + blendingThreshold - 0.5) / blendingThreshold;
+            float blendWarmFactor = 0.5 * (temp + blendingThreshold - 0.66) / blendingThreshold;
+            float blendColdFactor = 0.5 * (temp + blendingThreshold - 0.33) / blendingThreshold;
+
+            bool blendHumid = isLand && blendHumidFactor <= 1.0 && blendHumidFactor >= 0;
+            bool blendWarm = isLand && blendWarmFactor <= 1.0 && blendWarmFactor >= 0;
+            bool blendCold = isLand && blendColdFactor <= 1.0 && blendColdFactor >= 0;
+
+            if (blendWarm || blendCold || blendHumid) {
+                biomeColors *= 0;
+                int samples = 0;
+                if (blendWarm) {
+                    if (humid > 0.5) {
+                        biomeColors += mix(forestColor, rainForestColor, blendWarmFactor);
+                    } else {
+                        biomeColors += mix(plainsColor, dessertColor, blendWarmFactor);
+                    }
+                    samples++;
+                } else if (blendCold) {
+                    if (humid > 0.5) {
+                        biomeColors += mix(taigaColor, forestColor, blendColdFactor);
+                    } else {
+                        biomeColors += mix(snowColor, plainsColor, blendColdFactor);
+                    }
+                    samples++;
+                }
+                if (blendHumid) {
+                    if (temp > 0.66) {
+                        biomeColors += mix(dessertColor, rainForestColor, blendHumidFactor);
+                    } else if ( temp > 0.33) {
+                        biomeColors += mix(plainsColor, forestColor, blendHumidFactor);
+                    } else {
+                        biomeColors += mix(snowColor, taigaColor, blendHumidFactor);
+                    }
+                    samples++;
+                }
+                biomeColors /= samples;
+            } 
+            
             Uint8 r = static_cast<Uint8>(biomeColors.r * 255);
             Uint8 g = static_cast<Uint8>(biomeColors.g * 255);
             Uint8 b = static_cast<Uint8>(biomeColors.b * 255);
 
             // Set the pixel as an RGBA value (grayscale for R, G, B, A = 255)
             pixels[y * width + x] = SDL_MapRGBA(surface->format, r, g, b, 255);
-            //pixels[y * width + x] = SDL_MapRGBA(surface->format, grayscale, grayscale, grayscale, 255);
         }
     }
 
@@ -147,7 +241,7 @@ int main(int argc, char* argv[]) {
     }
 
     // Generate the height map texture
-    SDL_Texture* heightMapTexture = GenerateHeightMap(renderer, mapWidth, mapHeight);
+    SDL_Texture* heightMapTexture = GenerateMap(renderer, mapWidth, mapHeight);
     if (!heightMapTexture) {
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);

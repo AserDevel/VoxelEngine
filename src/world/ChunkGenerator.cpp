@@ -1,109 +1,110 @@
 #include "world/ChunkGenerator.h"
 
-float ChunkGenerator::generateHeight(const Vec2& worldPosition2D) {
-    int x = worldPosition2D.x, z = worldPosition2D.z;
-    
-    float frequency = 1.0f / 16;
-    float amplitude = 4.0f;
-
-    // general heightmap
-    float height = 100.0f * perlinHeight.noise(x * 0.002f, z * 0.002f);
-
-    // generate more detailed terrain
-    for (int i = 0; i < 3; i++) {
-        height += amplitude * perlinHeight.noise(x * frequency, z * frequency);
-        frequency *= 0.5f;
-        amplitude *= 2.0f;
+BiomeType ChunkGenerator::getBiome(float height, float humid, float temp) {
+    BiomeType biome;
+    if (height < 0.45) {
+        biome = OCEAN;
+    } else if (height > 0.6) {
+        biome = MOUNTAINS;
+    } else {
+        if (humid > 0.5) {
+            if (temp > 0.66) {
+                biome = RAINFOREST;
+            } else if (temp > 0.33) {
+                biome = FOREST;
+            } else {
+                biome = TAIGA;
+            }
+        } else {
+            if (temp > 0.66) {
+                biome = DESSERT;
+            } else if (temp > 0.33) {
+                biome = PLAINS;
+            } else {
+                biome = SNOW;
+            }
+        }
     }
 
-    // generate steep mountains and cliffs
-    float mountainThreshold = 0.3f;
-    frequency = 0.1f / 16;
-    amplitude = 30.0f;
-    float mountainHeight = perlinHeight.noise(x * frequency, z * frequency);
-    mountainHeight = amplitude * smoothstep(mountainThreshold - 0.2f, mountainThreshold + 0.2f, mountainHeight);
-
-    /*
-    float cliffThreshold = 0.5f;
-    frequency = 1.0f / 16;
-    amplitude = 10.0f;
-    float cliffHeight = perlinHeight.noise(x * frequency, z * frequency);
-    cliffHeight = amplitude * smoothstep(cliffThreshold - 0.05f, cliffThreshold + 0.05f, cliffHeight);
-    */
-
-    height += mountainHeight + 100;
-    
-    return height;
+    return biome;
 }
 
+float ChunkGenerator::generateWorldHeight(const Vec2& worldPosition2D, BiomeType biome, float height) {
+    int x = worldPosition2D.x, z = worldPosition2D.z;
 
-std::string ChunkGenerator::generateBiome(const Vec2& worldPosition2D, float height) {
-    float biomeFrequency = 0.001f;
-    float temp = perlinTemp.noise(worldPosition2D.x * biomeFrequency, worldPosition2D.z * biomeFrequency) * 0.5f + 0.5f; // [0,1]
-    float humid = perlinHumid.noise(worldPosition2D.x * biomeFrequency, worldPosition2D.z * biomeFrequency) * 0.5f + 0.5f; // [0,1]
+    return height * 255;
+}
 
-    std::string res;
-
-    if (height < waterHeight) {
-        if (temp > 0.33) return "ocean";
-        else return "coldOcean";
-    } else if (height > 100) {
-        if (temp > 0.33) return "mountains";
-        else return "snowyMountains";
-    }
-
-    if (temp > 0.7) {
-        if (humid > 0.5) res = "rainForest";
-        else res = "dessert";
-    } else if (temp > 0.3) {
-        if (humid > 0.5) res = "forest";
-        else res = "grass";
-    } else {
-        if (humid > 0.5) res = "taiga";
-        else res = "snow";
-    }
-
-    return res;
+Voxel ChunkGenerator::generateVoxel(const Vec3& worldPositiom, BiomeType biome, int worldHeight) {
+    Voxel newVoxel;
+    return newVoxel;
 }
 
 void ChunkGenerator::generateChunk(Chunk* chunk) {
-    Vec2 worldPosition2D = Vec2(chunk->worldPosition.x, chunk->worldPosition.z);
+    int wpx = chunk->worldPosition.x, wpz = chunk->worldPosition.z;
+    for (int x = wpx; x < wpx + chunkSize; x++) {
+        for (int z = wpz; z < wpz + chunkSize; z++) {
+            // Generate base height
+            float height = 0.5 + 0.2 * perlin.octaveNoise(x, z, 5, 0.5, 0.002);
 
-    for (int x = 0; x < chunkSize; x++) {
-        for (int z = 0; z < chunkSize; z++) {
-            Vec2 wp2D = worldPosition2D + Vec2(x, z);
-            
-            int height = generateHeight(wp2D);
-            std::string biome = generateBiome(wp2D, height);
+            // Generate humidity
+            float humid = 0.5 + 0.5 * perlin.octaveNoise(x, z, 3, 0.5, 0.002, Vec2(1000, 1000));
 
-            int top = std::max(height, waterHeight);
+            // generate temperature
+            float temp = 0.5 + 0.5 * perlin.octaveNoise(x, z, 3, 0.5, 0.0015, Vec2(-1000, -1000));
+
+            BiomeType biome = getBiome(height, humid, temp);
+            float blendingThreshold = 0.01;
+
+            float mountainBlendFactor = 0.5 * (height + blendingThreshold - 0.6) / blendingThreshold;
+            float humidBlendFactor = 0.5 * (humid + blendingThreshold - 0.5) / blendingThreshold;
+            float warmBlendFactor = 0.5 * (temp + blendingThreshold - 0.66) / blendingThreshold;
+            float coldBlendFactor = 0.5 * (temp + blendingThreshold - 0.33) / blendingThreshold;
+
+            if (mountainBlendFactor >= 0) {
+                float mountainThreshold = 0.5f;
+                float frequency = 0.02;
+                float mountainHeight = 0.3 * perlin.octaveNoise(x, z, 3, 0.5, 0.005, Vec2(-1000, 1000));
+                //mountainHeight = height + smoothstep(mountainThreshold - 0.05f, mountainThreshold + 0.05f, mountainHeight); 
+                if (mountainHeight < 0) mountainHeight = 0;
+                mountainHeight = height + mountainHeight;
+                height = mix(height, mountainHeight, mountainBlendFactor);
+            }
+
+            uint8_t lightLevel = 0x0F;
+            int worldHeight = height * 255;
+            int top = std::max(worldHeight, waterHeight);
             for (int y = top; y >= 0; y--) {     
                 Voxel newVoxel = {0, 0, 0};
-
-                if (biome == "ocean" || biome == "coldOcean") {
-                    if (y > height) {
+                switch (biome) {
+                case OCEAN:
+                    if (y > worldHeight) {
+                        lightLevel = std::max(lightLevel - 1, 0);
+                        newVoxel.lightLevel = lightLevel;
                         newVoxel.materialID = IDX_WATER;
-                    } else if (y == height) {
+                    } else if (y >= worldHeight - 1) {
                         newVoxel.materialID = IDX_SAND;
                     } else {
                         newVoxel.materialID = IDX_STONE;
-                    }
-                    
-                    chunk->addVoxel(Vec3(wp2D.x, y, wp2D.z), newVoxel);
-                    continue;
-                }
-
-                if (y == height) {
-                    newVoxel.materialID = IDX_GRASS;
-                } else if (y > height -3) {
-                    newVoxel.materialID = IDX_DIRT;
-                } else {
+                    } 
+                    break;
+                case MOUNTAINS:
                     newVoxel.materialID = IDX_STONE;
+                    break;
+                default:
+                    if (y == worldHeight) {
+                        newVoxel.materialID = IDX_GRASS;
+                    } else if (y >= worldHeight -3) {
+                        newVoxel.materialID = IDX_DIRT;
+                    } else {
+                        newVoxel.materialID = IDX_STONE;
+                    }  
+                    break;
                 }
         
-                chunk->addVoxel(Vec3(wp2D.x, y, wp2D.z), newVoxel);
+                chunk->addVoxel(Vec3(x, y, z), newVoxel);
             }
-            chunk->setHeightAt(wp2D, height);
+            chunk->setHeightAt(Vec2(x, z), worldHeight);
         }
     }
     

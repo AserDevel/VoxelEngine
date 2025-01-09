@@ -21,7 +21,8 @@ private:
     Vec2 worldToChunkPosition(const Vec2& worldPosition2D) const;    
     
     // utility functions
-    bool neighboursReady(Chunk* chunk);
+    bool neighboursGenerated(Chunk* chunk);
+    bool neighbourIsMeshing(Chunk* chunk);
     void updateSkyLightAt(const Vec2 worldPosition2D);
 
     // Chunk management

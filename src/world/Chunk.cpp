@@ -69,19 +69,13 @@ void Chunk::markDirty(const Vec3& worldPosition) {
 // voxel manipulation
 bool Chunk::addVoxel(const Vec3& worldPosition, const Voxel& voxel) {
     auto subChunk = addSubChunk(worldPosition.y);
-    if (subChunk == nullptr) {
-        std::cerr << "Error adding voxel at the chunk level" << std::endl;
-        return false;
-    }
+    if (!subChunk) return false;
     return subChunk->addVoxel(worldPosition - subChunk->worldPosition, voxel);
 }
 
 bool Chunk::removeVoxel(const Vec3& worldPosition) {
     auto subChunk = getSubChunk(worldPosition.y);
-    if (subChunk == nullptr) {
-        std::cerr << "Error removing voxel at the chunk level" << std::endl;
-        return false;
-    }
+    if (!subChunk) return false;
     return subChunk->removeVoxel(worldPosition - subChunk->worldPosition);
 }
 
@@ -104,7 +98,7 @@ int Chunk::getHeightAt(const Vec2& worldPosition2D) const {
 void Chunk::setHeightAt(const Vec2& worldPosition2D, int newHeight) {    
     if (newHeight < maxDepth || newHeight > maxHeight) return;
 
-    Vec2 localPosition2D = worldPosition2D - Vec2(this->worldPosition.x, this->worldPosition.z);
+    Vec2 localPosition2D = worldPosition2D - this->worldPosition.xz();
     int idx = localPosition2D.x + localPosition2D.z * chunkSize;
     if (idx < 0 || idx >= (chunkSize * chunkSize)) {
         std::cerr << "Error setting height at position: "; worldPosition2D.print();
@@ -116,11 +110,9 @@ void Chunk::setHeightAt(const Vec2& worldPosition2D, int newHeight) {
 void Chunk::updateHeightAt(const Vec2& worldPosition2D) {
     for (int y = maxHeight; y >= maxDepth; y--) {
         Voxel* voxel = getVoxelAt(Vec3(worldPosition2D.x, y, worldPosition2D.z));
-        if (!voxel) continue;
-        if (voxel->materialID != IDX_AIR) {
-            setHeightAt(worldPosition2D, y);
-            return;
-        }
+        if (!voxel || materials[voxel->materialID].isTransparent) continue;
+        setHeightAt(worldPosition2D, y);
+        return;
     }
 }
 

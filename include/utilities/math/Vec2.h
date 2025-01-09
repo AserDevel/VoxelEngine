@@ -3,6 +3,7 @@
 
 #include <math.h>
 #include <iostream>
+#include "Utils.h"
 
 struct Vec2 {
     union { float x = 0, u; };
@@ -14,68 +15,68 @@ struct Vec2 {
     inline bool operator==(const Vec2& other) const {
         const float epsilon = 1e-5f;  // Precision tolerance
         return std::abs(x - other.x) < epsilon &&
-               std::abs(y - other.y) < epsilon &&
-               std::abs(z - other.z) < epsilon;
+               std::abs(y - other.y) < epsilon;
     }
 
     inline bool operator!=(const Vec2& other) const {
         const float epsilon = 1e-5f;  // Precision tolerance
         return std::abs(x - other.x) > epsilon ||
-               std::abs(y - other.y) > epsilon ||
-               std::abs(z - other.z) > epsilon;
-    }
-    
-    inline Vec2 operator+(const Vec2& v) const {
-        Vec2 vec;
-        vec.x = this->x + v.x; vec.y = this->y + v.y;
-        return vec;
-    }
-
-    inline void operator+=(const Vec2& v) {
-        this->x += v.x; this->y += v.y;
-    }
-
-    inline Vec2 operator-(const Vec2& v) const {
-        Vec2 vec;
-        vec.x = this->x - v.x; vec.y = this->y - v.y;
-        return vec;
-    }
-
-    inline Vec2 operator*(const Vec2& v) const {
-        return { this->x * v.x, this->y * v.y };
-    }
-
-    inline Vec2 operator/(const Vec2& v) const {
-        return { this->x / v.x, this->y / v.y };
-    }
-
-    inline void operator-=(const Vec2& v) {
-        this->x -= v.x; this->y -= v.y;
+               std::abs(y - other.y) > epsilon;
     }
 
     inline Vec2 operator-() const {
-        Vec2 vec;
-        vec.x = -this->x; vec.y = -this->y;
-        return vec;
+        return Vec2(-this->x, -this->y);
+    }
+
+    inline Vec2 operator+(const Vec2& other) const {
+        return Vec2(this->x + other.x, this->y + other.y);
+    }
+
+    inline void operator+=(const Vec2& other) {
+        this->x += other.x; this->y += other.y;
+    }
+
+    inline Vec2 operator-(const Vec2& other) const {
+        return Vec2(this->x - other.x, this->y - other.y);
+    }
+
+    inline void operator-=(const Vec2& other) {
+        this->x -= other.x; this->y -= other.y;
+    }
+
+    inline Vec2 operator*(const Vec2& other) const {
+        return Vec2(this->x * other.x, this->y * other.y);
+    }
+
+    inline void operator*=(const Vec2& other) {
+        this->x *= other.x; this->y *= other.y;
+    }
+
+    inline Vec2 operator/(const Vec2& other) const {
+        return Vec2(this->x / other.x, this->y / other.y);
+    }
+
+    inline void operator/=(const Vec2& other) {
+        this->x /= other.x; this->y /= other.y;
     }
 
     inline Vec2 operator*(const float k) const {
-        Vec2 vec;
-        vec.x = this->x * k; vec.y = this->y * k;
-        return vec;
+        return Vec2(this->x * k, this->y * k);
+    }
+
+    inline void operator*=(const float k) {
+        this->x *= k; this->y *= k; this->z *= k;
     }
 
     inline Vec2 operator/(const float k) const {
-        Vec2 vec;
-        vec.x = this->x / k; vec.y = this->y / k;
-        return vec;
+        return Vec2(this->x / k, this->y / k);
+    }
+
+    inline void operator/=(const float k) {
+        this->x /= k; this->y /= k;
     }
 
     inline void print() const {
-        std::cout << this->x << ", " << this->y << std::endl;
-    }
-
-    inline void print() {
         std::cout << this->x << ", " << this->y << std::endl;
     }
 };
@@ -112,6 +113,18 @@ inline Vec2 normalise(const Vec2& v) {
 
 inline float det(const Vec2& v1, const Vec2& v2) {
     return ((v1.x * v2.y) - (v2.x * v1.y));
+}
+
+inline Vec2 sign(const Vec2& vec) {
+    return Vec2(sign(vec.x), sign(vec.y));
+}
+
+inline Vec2 floor(const Vec2 vec) {
+    return Vec2(std::floor(vec.x), std::floor(vec.y));
+}
+
+inline Vec2 abs(const Vec2 vec) {
+    return Vec2(std::abs(vec.x), std::abs(vec.y));
 }
 
 

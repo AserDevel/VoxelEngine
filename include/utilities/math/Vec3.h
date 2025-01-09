@@ -3,15 +3,15 @@
 
 #include <math.h>
 #include <iostream>
-#include "Utils.h"
+#include "Vec2.h"
 
 struct Vec3 {
     union { float x = 0, r, u; };
     union { float y = 0, g, v; };
     union { float z = 0, b, w; };
 
-    inline Vec3(float a = 0, float b = 0, float c = 0) : 
-        x(a), y(b), z(c) {};
+    inline Vec3(float x = 0, float y = 0, float z = 0) : 
+        x(x), y(y), z(z) {};
     
     inline bool operator==(const Vec3& other) const {
         const float epsilon = 1e-5f;  // Precision tolerance
@@ -27,54 +27,64 @@ struct Vec3 {
                std::abs(z - other.z) > epsilon;
     }
 
-    inline Vec3 operator+(const Vec3& v) const {
-        Vec3 vec;
-        vec.x = this->x + v.x; vec.y = this->y + v.y; vec.z = this->z + v.z;
-        return vec;
-    }
-
-    inline void operator+=(const Vec3& v) {
-        this->x += v.x; this->y += v.y; this->z += v.z;
-    }
-
-    inline Vec3 operator-(const Vec3& v) const {
-        Vec3 vec;
-        vec.x = this->x - v.x; vec.y = this->y - v.y; vec.z = this->z - v.z;
-        return vec;
-    }
-
-    inline void operator-=(const Vec3& v) {
-        this->x -= v.x; this->y -= v.y; this->z -= v.z;
-    }
-
     inline Vec3 operator-() const {
-        Vec3 vec;
-        vec.x = -this->x; vec.y = -this->y; vec.z = -this->z;
-        return vec;
+        return Vec3(-this->x, -this->y, -this->z);
     }
 
-    inline Vec3 operator*(const Vec3& v) const {
-        return { this->x * v.x, this->y * v.y, this->z * v.z };
+    inline Vec3 operator+(const Vec3& other) const {
+        return Vec3(this->x + other.x, this->y + other.y, this->z + other.z);
     }
 
-    inline Vec3 operator/(const Vec3& v) const {
-        return { this->x / v.x, this->y / v.y, this->z / v.z };
+    inline void operator+=(const Vec3& other) {
+        this->x += other.x; this->y += other.y; this->z += other.z;
+    }
+
+    inline Vec3 operator-(const Vec3& other) const {
+        return Vec3(this->x - other.x, this->y - other.y, this->z - other.z);
+    }
+
+    inline void operator-=(const Vec3& other) {
+        this->x -= other.x; this->y -= other.y; this->z -= other.z;
+    }
+
+    inline Vec3 operator*(const Vec3& other) const {
+        return Vec3(this->x * other.x, this->y * other.y, this->z * other.z);
+    }
+
+    inline void operator*=(const Vec3& other) {
+        this->x *= other.x; this->y *= other.y; this->z *= other.z;
+    }
+
+    inline Vec3 operator/(const Vec3& other) const {
+        return Vec3(this->x / other.x, this->y / other.y, this->z / other.z);
+    }
+
+    inline void operator/=(const Vec3& other) {
+        this->x /= other.x; this->y /= other.y; this->z /= other.z;
     }
 
     inline Vec3 operator*(const float k) const {
-        Vec3 vec;
-        vec.x = this->x * k; vec.y = this->y * k; vec.z = this->z * k;
-        return vec;
+        return Vec3(this->x * k, this->y * k, this->z * k);
+    }
+
+    inline void operator*=(const float k) {
+        this->x *= k; this->y *= k; this->z *= k;
     }
 
     inline Vec3 operator/(const float k) const {
-        Vec3 vec;
-        vec.x = this->x / k; vec.y = this->y / k; vec.z = this->z / k;
-        return vec;
+        return Vec3(this->x / k, this->y / k, this->z / k);
     }
 
-    inline void print() {
-        std::cout << this->x << ", " << this->y << ", " << this->z << std::endl;
+    inline void operator/=(const float k) {
+        this->x /= k; this->y /= k; this->z /= k;
+    }
+
+    inline Vec2 xy() const {
+        return Vec2(this->x, this->y);
+    }
+
+    inline Vec2 xz() const {
+        return Vec2(this->x, this->z);
     }
 
     inline void print() const {
@@ -132,6 +142,10 @@ inline Vec3 floor(const Vec3 vec) {
 
 inline Vec3 abs(const Vec3 vec) {
     return Vec3(std::abs(vec.x), std::abs(vec.y), std::abs(vec.z));
+}
+
+inline Vec3 mix(const Vec3& vec1, const Vec3& vec2, float t) {
+    return Vec3(mix(vec1.r, vec2.r, t), mix(vec1.g, vec2.g, t), mix(vec1.b, vec2.b, t));
 }
 
 #endif

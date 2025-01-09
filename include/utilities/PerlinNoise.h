@@ -2,6 +2,7 @@
 
 #include <numeric>
 #include <random>
+#include "utilities/standard.h"
 
 class PerlinNoise {
 public:
@@ -10,6 +11,8 @@ public:
 
     double noise(double x, double y) const;      // 2D Perlin Noise
     double noise(double x, double y, double z) const; // 3D Perlin Noise
+
+    double octaveNoise(double x, double z, int octaves, double persistence, double scale, Vec2 offset = Vec2(0, 0));
 
 private:
     std::vector<int> permutation;

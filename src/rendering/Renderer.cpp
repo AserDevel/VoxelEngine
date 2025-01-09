@@ -4,6 +4,8 @@
 void Renderer::render() {
     auto loadedChunks = worldManager.getLoadedChunks();
     shader.use();
+    shader.bindVector(Vec3(1, 0.9, 0.9), "skyLightColor");
+    shader.bindVector(Vec3(-0.5, -0.5, -0.5), "skyLightDir");
     shader.bindMatrix(camera.getMatCamera(), "matCamera");
     shader.bindMaterials(materials);
     
@@ -18,7 +20,7 @@ void Renderer::render() {
     liquidShader.bindMatrix(camera.getMatCamera(), "matCamera");
 
     glDepthMask(GL_FALSE);
-    glDisable(GL_CULL_FACE);
+    //glDisable(GL_CULL_FACE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     for (auto& chunk : loadedChunks) {
@@ -26,7 +28,7 @@ void Renderer::render() {
     }
     glDisable(GL_BLEND);
     glDepthMask(GL_TRUE);
-    glEnable(GL_CULL_FACE);
+    //glEnable(GL_CULL_FACE);
 
     // Render the center marker
     markerShader.use();

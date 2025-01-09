@@ -7,7 +7,9 @@ class ChunkMeshGenerator {
 private:
     WorldManager& worldManager;
 
-    int vertexAO(int i, int v, const Vec3& voxelPos);
+    int vertexAO(int n, int v, const Vec3& voxelPos);
+
+    uint8_t vertexLightLevel(int n, int v, const Vec3& voxelPos);
 
     void generateSubChunkMesh(SubChunk* subChunk);
 
