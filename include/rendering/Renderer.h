@@ -16,7 +16,7 @@ private:
     Shader shader = Shader("assets/shaders/standardShader.glsl");
     Shader liquidShader = Shader("assets/shaders/liquidShader.glsl");
     Shader markerShader = Shader("assets/shaders/marker.glsl");
-    Shader rayDebug = Shader("assets/shaders/rayDebug.glsl");
+    Shader lineShader = Shader("assets/shaders/lineShader.glsl");
 
     static const int chunkSize = SUBCHUNK_SIZE;
 

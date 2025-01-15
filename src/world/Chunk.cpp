@@ -125,6 +125,10 @@ void Chunk::loadMeshes() {
         if (!subChunk->transparentMesh.vertices.empty()) {
             subChunk->transparentMesh.loadToGPU();
         }
+        
+        if (!subChunk->outlineMesh.vertices.empty()) {
+            subChunk->outlineMesh.loadToGPU();
+        }
     }
     state = ChunkState::LOADED;
 }
@@ -143,6 +147,15 @@ void Chunk::drawTransparent() {
         if (!subChunk->transparentMesh.vertices.empty()) {
             subChunk->transparentMesh.bind();
             subChunk->transparentMesh.draw();
+        }
+    }
+}
+
+void Chunk::drawOutlines() {
+    for (auto& [height, subChunk] : subChunks) {
+        if (!subChunk->outlineMesh.vertices.empty()) {
+            subChunk->outlineMesh.bind();
+            subChunk->outlineMesh.draw();
         }
     }
 }

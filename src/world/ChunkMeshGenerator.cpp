@@ -1,9 +1,61 @@
 #include "world/WorldManager.h"
 
+bool ChunkMeshGenerator::isOpaque(SubChunk* subChunk) {
+    subChunk->forEachVoxel([&](const Vec3& localPosition, const Voxel& voxel) {
+        if (materials[voxel.materialID].isTransparent) return false;
+    });
+
+    int wpx = subChunk->worldPosition.x;
+    int wpy = subChunk->worldPosition.y;
+    int wpz = subChunk->worldPosition.z;
+    for (int x = wpx; x < wpx + SUBCHUNK_SIZE; x++) {
+        for (int y = wpy; y < wpy + SUBCHUNK_SIZE; y++) {
+            if (worldManager.positionIsTransparent(Vec3(x, y, wpz-1))) return false;
+            if (worldManager.positionIsTransparent(Vec3(x, y, wpz + SUBCHUNK_SIZE))) return false;
+        }
+        for (int z = wpz; z < wpz + SUBCHUNK_SIZE; z++) {
+            if (worldManager.positionIsTransparent(Vec3(x, wpy-1, z))) return false;
+            if (worldManager.positionIsTransparent(Vec3(x, wpy + SUBCHUNK_SIZE, z))) return false;
+        }
+    }
+    for (int y = wpy; y < wpy + SUBCHUNK_SIZE; y++) {
+        for (int z = wpz; z < wpz + SUBCHUNK_SIZE; z++) {
+            if (worldManager.positionIsTransparent(Vec3(wpx-1, y, z))) return false;
+            if (worldManager.positionIsTransparent(Vec3(wpx + SUBCHUNK_SIZE, y, z))) return false;
+        }
+    }
+    return true;
+}
+
+void ChunkMeshGenerator::generateOutline(SubChunk* subChunk) {
+    std::vector<Vertex> outlineVertices;
+    std::vector<GLuint> outlineIndices;
+    for (int face = 0; face < 6; face++) {
+        for (int vert = 0; vert < 4; vert++) {
+            Vertex vertex = cubeVertices[face][vert];
+            vertex.position *= SUBCHUNK_SIZE;
+            vertex.position += subChunk->worldPosition + Vec3(8, 8, 8);
+            outlineVertices.push_back(vertex);
+        }
+
+        GLuint baseIndex = outlineVertices.size() - 4;
+        for (int i = 0; i < 6; i++) {
+            subChunk->outlineMesh.indices.push_back(cubeIndicies[baseIndex + cubeIndicies[i]]);
+        }
+    }
+    subChunk->outlineMesh.vertices = outlineVertices;
+    subChunk->outlineMesh.indices = outlineIndices;
+}
+
+
 void ChunkMeshGenerator::generateChunkMeshes(Chunk* chunk) {
     for (auto& [height, subChunk] : chunk->subChunks) {
         if (subChunk->isDirty) {
-            generateSubChunkMesh(subChunk.get());
+            if (!isOpaque(subChunk.get())) {
+                generateSubChunkMesh(subChunk.get());
+            }
+            generateOutline(subChunk.get());
+            subChunk->isDirty = false;
         }
     }
     chunk->isDirty = false;
@@ -11,10 +63,10 @@ void ChunkMeshGenerator::generateChunkMeshes(Chunk* chunk) {
 }
 
 void ChunkMeshGenerator::generateSubChunkMesh(SubChunk* subChunk) {
-    subChunk->mesh.vertices.clear();
-    subChunk->mesh.indices.clear();
-    subChunk->transparentMesh.vertices.clear();
-    subChunk->transparentMesh.indices.clear();
+    std::vector<Vertex> newMeshVertices;
+    std::vector<GLuint> newMeshIndices;
+    std::vector<Vertex> newTransparentMeshVertices;
+    std::vector<GLuint> newTransparentMeshIndices;
     
     subChunk->forEachVoxel([&](const Vec3& localPosition, const Voxel& voxel) {
         if (voxel.materialID != IDX_AIR) {
@@ -35,7 +87,6 @@ void ChunkMeshGenerator::generateSubChunkMesh(SubChunk* subChunk) {
                 } else {
                     faceIsVisible = worldManager.positionIsTransparent(neighborPos);
                 }
-                
                 if (faceIsVisible) {
                     // Transform face vertices to world coordinates
                     int a00a11 = 0, a01a10 = 0;
@@ -51,7 +102,7 @@ void ChunkMeshGenerator::generateSubChunkMesh(SubChunk* subChunk) {
                         if (isTransparent) {
                             vertex.data |= 3 << OFFSET_AO;
                             vertex.position.y -= 0.125;
-                            subChunk->transparentMesh.vertices.push_back(vertex);
+                            newTransparentMeshVertices.push_back(vertex);
                             continue;
                         }
                         
@@ -64,34 +115,37 @@ void ChunkMeshGenerator::generateSubChunkMesh(SubChunk* subChunk) {
                             a01a10 += AOvalue;
                         }  
                         
-                        subChunk->mesh.vertices.push_back(vertex);
+                        newMeshVertices.push_back(vertex);
                     }
                     
                     // Add face indices, offset by current vertex count
-                    GLuint baseIndex = subChunk->transparentMesh.vertices.size() - 4;
+                    GLuint baseIndex = newTransparentMeshVertices.size() - 4;
                     if (isTransparent) {
                         for (int i = 0; i < 6; i++) {
-                            subChunk->transparentMesh.indices.push_back(baseIndex + cubeIndicies[i]);
+                            newTransparentMeshIndices.push_back(baseIndex + cubeIndicies[i]);
                         }
                         continue;
                     }
                     
-                    baseIndex = subChunk->mesh.vertices.size() - 4;
+                    baseIndex = newMeshVertices.size() - 4;
                     if (a00a11 > a01a10) {
                         for (int i = 0; i < 6; i++) {
-                            subChunk->mesh.indices.push_back(baseIndex + cubeIndicies[i]);
+                            newMeshIndices.push_back(baseIndex + cubeIndicies[i]);
                         }
                     } else {
                         for (int i = 0; i < 6; i++) {
-                            subChunk->mesh.indices.push_back(baseIndex + cubeIndiciesFlipped[i]);
+                            newMeshIndices.push_back(baseIndex + cubeIndiciesFlipped[i]);
                         }
                     }
                 }
             }
         }     
     });
-    
-    subChunk->isDirty = false;
+
+    subChunk->mesh.vertices = newMeshVertices;
+    subChunk->mesh.indices = newMeshIndices;
+    subChunk->transparentMesh.vertices = newTransparentMeshVertices;
+    subChunk->transparentMesh.indices = newTransparentMeshIndices;
 }
 
 int ChunkMeshGenerator::vertexAO(int n, int v, const Vec3& voxelPos) {
@@ -165,4 +219,3 @@ uint8_t ChunkMeshGenerator::vertexLightLevel(int n, int v, const Vec3& voxelPos)
 
     return skyLight + (blockLight << 4);
 }
-

@@ -32,7 +32,10 @@ public:
     std::vector<Vertex> vertices;
     std::vector<GLuint> indices;
     
+    // constructor
     Mesh();
+    
+    // destructor
     ~Mesh() { cleanup(); }
 
     void bind() { glBindVertexArray(VAO); }
@@ -40,8 +43,6 @@ public:
     void loadToGPU();
 
     void draw();
-
-    void loadMeshFromObjFile(std::string filename);
 
 private:
     GLuint VAO; // Vertex Array Object (loading attribute pointers)

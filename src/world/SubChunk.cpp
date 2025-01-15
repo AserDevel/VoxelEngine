@@ -41,7 +41,6 @@ void SubChunk::forEachVoxel(std::function<void(const Vec3&, Voxel&)> callback) {
 bool SubChunk::addVoxel(const Vec3& localPosition, const Voxel& newVoxel) {
     Voxel* voxel = getVoxelAt(localPosition);
     if (voxel->materialID != IDX_AIR) {
-        std::cerr << "Attempted to replace a solid voxel" << std::endl;
         return false;
     }    
     *voxel = newVoxel;
@@ -51,7 +50,6 @@ bool SubChunk::addVoxel(const Vec3& localPosition, const Voxel& newVoxel) {
 bool SubChunk::removeVoxel(const Vec3& localPosition) {
     Voxel* voxel = getVoxelAt(localPosition);
     if (voxel->materialID == IDX_AIR) {
-        std::cerr << "Attempted to remove a non-solid voxel" << std::endl;
         return false;
     }
     *voxel = {0, 0, 0};

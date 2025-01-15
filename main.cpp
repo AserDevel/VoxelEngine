@@ -95,12 +95,12 @@ int main(int argc, char* argv[]) {
         std::cerr << "Error initializing window " << SDL_GetError() << std::endl;
         return -1;
     }
-
+    
     Camera camera = Camera(
-        Vec3(0.0f, 100.0f, 0.0f),  // Position
+        Vec3(0.0f, 250.0f, 0.0f),  // Position
         Vec3(0.0f, 1.0f, 0.0f),    // Up vector
         0,                         // Yaw
-        0,                         // Pitch
+        toRad(45.0),               // Pitch
         90.0f,                     // FOV
         1 / ASPECT_RATIO,          // Aspect ratio
         0.1f,                      // Near plane
@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
     );
 
     ThreadManager threadManager(4);
-    WorldManager worldManager(threadManager, 16);
+    WorldManager worldManager(threadManager, 12);
     Renderer renderer(worldManager, camera);
 
     float lastFrameTime = SDL_GetTicks() / 1000.0f;

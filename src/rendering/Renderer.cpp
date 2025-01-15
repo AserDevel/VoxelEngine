@@ -8,8 +8,6 @@ void Renderer::render() {
     shader.bindVector(Vec3(-0.5, -0.5, -0.5), "skyLightDir");
     shader.bindMatrix(camera.getMatCamera(), "matCamera");
     shader.bindMaterials(materials);
-    
-    //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glDepthMask(GL_TRUE);
     glEnable(GL_CULL_FACE);
     for (auto& chunk : loadedChunks) {
@@ -18,9 +16,7 @@ void Renderer::render() {
     
     liquidShader.use();
     liquidShader.bindMatrix(camera.getMatCamera(), "matCamera");
-
     glDepthMask(GL_FALSE);
-    //glDisable(GL_CULL_FACE);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     for (auto& chunk : loadedChunks) {
@@ -28,7 +24,17 @@ void Renderer::render() {
     }
     glDisable(GL_BLEND);
     glDepthMask(GL_TRUE);
-    //glEnable(GL_CULL_FACE);
+
+    /*
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    lineShader.use();
+    lineShader.bindMatrix(camera.getMatCamera(), "matCamera");
+    lineShader.bindVector(Vec3(1, 0, 0), "lineColor");
+    for (auto& chunk : loadedChunks) {
+        chunk->drawOutlines();
+    }
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    */
 
     // Render the center marker
     markerShader.use();
@@ -68,10 +74,10 @@ void Renderer::debugRay(Vec3 start, Vec3 direction) {
     glEnableVertexAttribArray(0);
 
     // Use a simple shader for the line
-    rayDebug.use();
+    lineShader.use();
     glBindVertexArray(lineVAO);
-    rayDebug.bindMatrix(camera.getMatCamera(), "matCamera");
-    rayDebug.bindVector(Vec3(1, 0, 0), "lineColor");
+    lineShader.bindMatrix(camera.getMatCamera(), "matCamera");
+    lineShader.bindVector(Vec3(1, 0, 0), "lineColor");
     glDrawArrays(GL_LINES, 0, 2);
 
     // Cleanup
@@ -81,7 +87,6 @@ void Renderer::debugRay(Vec3 start, Vec3 direction) {
     glEnable(GL_DEPTH_TEST); // Re-enable depth testing
     glEnable(GL_CULL_FACE);
 }
-
 
 // Function to render a marker in the center of the screen
 void Renderer::loadCenterMarker() {
@@ -110,17 +115,6 @@ void Renderer::loadCenterMarker() {
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 }
-
-/*
-void Renderer::propagateLight(const Vec3& sourceWorldPosition, uint8_t initialLightLevel) {
-    std::unordered_set<Vec3, Vec3Hash> visited;
-    auto startingChunk = worldManager.getChunkAt(worldManager.worldToChunkPosition(sourceWorldPosition));
-
-    if (startingChunk) {
-        startingChunk->propagateLight(sourceWorldPosition, initialLightLevel, visited);
-    }
-}
-*/
 
 void Renderer::generateShadowMaps() {
     // light setup

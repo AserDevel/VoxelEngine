@@ -10,9 +10,11 @@
 
 enum class ChunkState {
     GENERATED,
+    READY,
     PENDING,
     MESHED,
     LOADED,
+    REMESHING
 };
 
 class Chunk {
@@ -37,7 +39,7 @@ public:
     // subchunks mapped vertically by chunkHeight 
     std::unordered_map<int, std::unique_ptr<SubChunk>> subChunks;  
         
-    ChunkState state = ChunkState::PENDING;
+    ChunkState state = ChunkState::READY;
 
     Chunk(Vec3 worldPosition) 
         : worldPosition(worldPosition) {}
@@ -62,4 +64,5 @@ public:
     void loadMeshes();
     void draw();
     void drawTransparent();
+    void drawOutlines();
 };

@@ -7,9 +7,9 @@
 
 class WorldManager {
 private:
-    std::unordered_map<Vec2, std::unique_ptr<Chunk>, Vec2Hash> chunkCache;    
     const int chunkSize = SUBCHUNK_SIZE;
     int updateDistance;
+    std::unordered_map<Vec2, std::unique_ptr<Chunk>, Vec2Hash> chunkCache;   
 
     ChunkGenerator chunkGenerator;
     ChunkMeshGenerator meshGenerator;
@@ -21,19 +21,19 @@ private:
     Vec2 worldToChunkPosition(const Vec2& worldPosition2D) const;    
     
     // utility functions
+    bool neighboursReady(Chunk* chunk);
     bool neighboursGenerated(Chunk* chunk);
-    bool neighbourIsMeshing(Chunk* chunk);
+    bool neighbourIsPending(Chunk* chunk);
     void updateSkyLightAt(const Vec2 worldPosition2D);
 
     // Chunk management
     Chunk* addChunk(const Vec2& chunkPosition2D);
     Chunk* getChunk(const Vec2& chunkPosition2D) const;
-    void removeChunk(const Vec2& chunkPosition2D);
-    bool chunkInCache(const Vec2& chunkPosition2D);
 
 public:
     WorldManager(ThreadManager& threadManager, int updateDistance)
-        : updateDistance(updateDistance), threadManager(threadManager), meshGenerator(*this), lightGenerator(*this) {}
+        : updateDistance(updateDistance), threadManager(threadManager), 
+          chunkGenerator(*this), meshGenerator(*this), lightGenerator(*this) {}
 
     // Updates all chunks in the a set range of the camera
     void updateChunks(Vec3 worldCenter);

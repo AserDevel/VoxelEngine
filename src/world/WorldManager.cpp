@@ -9,10 +9,6 @@ Vec2 WorldManager::worldToChunkPosition(const Vec2& worldPosition2D) const {
     return floor(worldPosition2D / chunkSize);
 }
 
-void WorldManager::removeChunk(const Vec2& chunkPosition2D) {
-    chunkCache.erase(chunkPosition2D);
-}
-
 Chunk* WorldManager::addChunk(const Vec2& chunkPosition2D) {
     Vec3 worldPosition = Vec3(chunkPosition2D.x * chunkSize, MAX_DEPTH, chunkPosition2D.z * chunkSize); 
     chunkCache[chunkPosition2D] = std::make_unique<Chunk>(worldPosition);
@@ -27,10 +23,6 @@ Chunk* WorldManager::getChunk(const Vec2& chunkPosition2D) const {
     return nullptr;
 }
 
-bool WorldManager::chunkInCache(const Vec2& chunkPosition2D) {
-    return chunkCache.find(chunkPosition2D) != chunkCache.end();
-}
-
 void WorldManager::updateChunks(Vec3 worldCenter) {
     Vec2 worldCenter2D = worldCenter.xz();
     Vec2 centerChunkPos = worldToChunkPosition(worldCenter);
@@ -42,50 +34,67 @@ void WorldManager::updateChunks(Vec3 worldCenter) {
             Vec2 chunkWorldCenter2D = chunkPos * chunkSize + Vec2(chunkSize / 2.0f, chunkSize / 2.0f);
             
             float distance = length(chunkWorldCenter2D - worldCenter2D); 
-            if (distance > updateDistance * chunkSize) {
-                if (chunkInCache(chunkPos)) {
-                    if (!neighbourIsMeshing(getChunk(chunkPos))) {
-                        removeChunk(chunkPos); // Remove chunk from cache
-                    }
-                } 
-                continue;
-            } 
+            if (distance > updateDistance * chunkSize) continue;
 
-            Chunk* chunk;
-            if (!chunkInCache(chunkPos)) {
+            auto chunk = getChunk(chunkPos);
+            if (!chunk) {
                 chunk = addChunk(chunkPos);
-                chunkGenerator.generateChunk(chunk);
-            } else {
-                chunk = getChunk(chunkPos);
+                chunkGenerator.generateChunk(chunk); // Generate general height and biome
             }
-            
-            if (chunk->state == ChunkState::PENDING || !neighboursGenerated(chunk)) continue;
-            
-            // Mesh all chunks that are either dirty or newly generated and ready for meshing
-            if (chunk->state == ChunkState::GENERATED) {
+
+            if (chunk->state == ChunkState::PENDING || chunk->state == ChunkState::REMESHING) continue;
+
+            // Generate features and mark chunk as it's ready for meshing
+            if (chunk->state == ChunkState::GENERATED && neighboursGenerated(chunk)) {
+                chunkGenerator.generateFeatures(chunk);
+            }
+                        
+            // Mesh newly generated chunks
+            if (chunk->state == ChunkState::READY && neighboursReady(chunk)) {
                 chunk->state = ChunkState::PENDING;
                 threadManager.addTask([this, chunk]() {
+                    //int start, end;
+                    //start = SDL_GetTicks();
                     meshGenerator.generateChunkMeshes(chunk);
+                    //end = SDL_GetTicks();
+                    //std::cout << "Chunk generated in: " << end - start << " ticks" << std::endl;
                 });
-                continue;
-            }
-
-            if (chunk->isDirty && !neighbourIsMeshing(chunk)) {
-                meshGenerator.generateChunkMeshes(chunk);
             }
             
+            // Load newly meshed chunks
             if (chunk->state == ChunkState::MESHED) {   
                 chunk->loadMeshes();
             }
+
+            // Remesh dirty chunks
+            if (chunk->isDirty && chunk->state >= ChunkState::LOADED) {
+                chunk->state = ChunkState::REMESHING;
+                threadManager.addTask([this, chunk]() {
+                    meshGenerator.generateChunkMeshes(chunk);
+                });
+            }
         }  
+    }
+
+    // Cleanup out of range chunks
+    std::vector<Vec2> chunksToRemove;
+    for (auto& [chunkPos, chunk] : chunkCache) {
+        Vec2 chunkWorldCenter2D = chunkPos * chunkSize + Vec2(chunkSize / 2.0f, chunkSize / 2.0f);
+        float distance = length(chunkWorldCenter2D - worldCenter2D);
+        if (distance > updateDistance * chunkSize) {
+            if (chunk->state != ChunkState::PENDING && !neighbourIsPending(chunk.get())) {
+                chunksToRemove.push_back(chunkPos);
+            }
+        }
+    }
+    for (const auto& chunkPos : chunksToRemove) {
+        chunkCache.erase(chunkPos);
     }
 }
 
 const Vec2 neighbourPositions[8] = { Vec2(1, 0), Vec2(-1, 0), Vec2(0, 1), Vec2(0, -1), Vec2(1, 1), Vec2(1, -1), Vec2(-1, 1), Vec2(-1, -1) };    
 
-bool WorldManager::neighboursGenerated(Chunk* chunk) {
-    if (!chunk || chunk->state < ChunkState::GENERATED) return false;
-    
+bool WorldManager::neighboursGenerated(Chunk* chunk) {    
     for (int i = 0; i < 8; i++) {
         auto neighbourChunk = getChunk(worldToChunkPosition(chunk->worldPosition) + neighbourPositions[i]);
         if (!neighbourChunk || neighbourChunk->state < ChunkState::GENERATED) return false;
@@ -94,9 +103,16 @@ bool WorldManager::neighboursGenerated(Chunk* chunk) {
     return true;
 }
 
-bool WorldManager::neighbourIsMeshing(Chunk* chunk) {    
-    if (chunk->state == ChunkState::PENDING) return true;
+bool WorldManager::neighboursReady(Chunk* chunk) {    
+    for (int i = 0; i < 8; i++) {
+        auto neighbourChunk = getChunk(worldToChunkPosition(chunk->worldPosition) + neighbourPositions[i]);
+        if (!neighbourChunk || neighbourChunk->state < ChunkState::READY) return false;
+    }
+    
+    return true;
+}
 
+bool WorldManager::neighbourIsPending(Chunk* chunk) {    
     for (int i = 0; i < 8; i++) {
         auto neighbourChunk = getChunk(worldToChunkPosition(chunk->worldPosition) + neighbourPositions[i]);
         if (!neighbourChunk) continue;
@@ -109,7 +125,7 @@ bool WorldManager::neighbourIsMeshing(Chunk* chunk) {
 std::vector<Chunk*> WorldManager::getLoadedChunks() {
     std::vector<Chunk*> loadedChunks;
     for (auto& [chunkPos, chunk] : chunkCache) {
-        if (chunk->state == ChunkState::LOADED) {
+        if (chunk->state >= ChunkState::LOADED) {
             loadedChunks.push_back(chunk.get());
         }
     }
@@ -119,8 +135,7 @@ std::vector<Chunk*> WorldManager::getLoadedChunks() {
 // Voxel operations
 void WorldManager::addVoxel(const Vec3& worldPosition, const Voxel& voxel) {
     auto chunk = getChunk(worldToChunkPosition(worldPosition));
-    if (chunk == nullptr) {
-        //std::cerr << "Error adding voxel at world level" << std::endl;
+    if (!chunk) {
         return;
     }
     uint8_t initialLightLevel = getLightLevelAt(worldPosition);
@@ -138,10 +153,7 @@ void WorldManager::addVoxel(const Vec3& worldPosition, const Voxel& voxel) {
 
 void WorldManager::removeVoxel(const Vec3& worldPosition) {
     auto chunk = getChunk(worldToChunkPosition(worldPosition));
-    if (chunk == nullptr) {
-        //std::cerr << "Error removing voxel at world level" << std::endl;
-        return;
-    }
+    if (!chunk) return;
     if (chunk->removeVoxel(worldPosition)) {
         markDirty(worldPosition);
         Vec2 worldPosition2D = worldPosition.xz();
@@ -157,7 +169,7 @@ void WorldManager::removeVoxel(const Vec3& worldPosition) {
 
 Voxel* WorldManager::getVoxelAt(const Vec3& worldPosition) {
     auto chunk = getChunk(worldToChunkPosition(worldPosition));
-    if (chunk == nullptr) {
+    if (!chunk) {
         return nullptr;
     }
     return chunk->getVoxelAt(worldPosition);

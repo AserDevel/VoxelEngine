@@ -21,10 +21,10 @@ public:
 
     Mesh mesh;
     Mesh transparentMesh;
+    Mesh outlineMesh;
     bool isDirty = true;
 
-    SubChunk(Vec3 worldPosition) 
-        : worldPosition(worldPosition) {}
+    SubChunk(Vec3 worldPosition) : worldPosition(worldPosition) {}
 
     ~SubChunk() {}
 
