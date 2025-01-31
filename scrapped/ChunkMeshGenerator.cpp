@@ -2,7 +2,7 @@
 
 bool ChunkMeshGenerator::isOpaque(SubChunk* subChunk) {
     subChunk->forEachVoxel([&](const Vec3& localPosition, const Voxel& voxel) {
-        if (materials[voxel.materialID].isTransparent) return false;
+        if (materials[voxel].isTransparent) return false;
     });
 
     int wpx = subChunk->worldPosition.x;
@@ -69,9 +69,9 @@ void ChunkMeshGenerator::generateSubChunkMesh(SubChunk* subChunk) {
     std::vector<GLuint> newTransparentMeshIndices;
     
     subChunk->forEachVoxel([&](const Vec3& localPosition, const Voxel& voxel) {
-        if (voxel.materialID != IDX_AIR) {
+        if (voxel != IDX_AIR) {
             Vec3 worldPosition = subChunk->worldPosition + localPosition;
-            bool isTransparent = materials[voxel.materialID].isTransparent;
+            bool isTransparent = materials[voxel].isTransparent;
             
             // For each face of the cube
             for (int face = 0; face < 6; face++) {
@@ -80,8 +80,8 @@ void ChunkMeshGenerator::generateSubChunkMesh(SubChunk* subChunk) {
 
                 if (isTransparent) {
                     faceIsVisible = !worldManager.positionIsSolid(neighborPos);
-                    if (voxel.materialID == IDX_WATER && face == 4 &&
-                        worldManager.getVoxelAt(neighborPos)->materialID != IDX_WATER ) {
+                    if (voxel == IDX_WATER && face == 4 &&
+                        *worldManager.getVoxelAt(neighborPos) != IDX_WATER ) {
                         faceIsVisible = true;
                     } 
                 } else {
@@ -97,7 +97,7 @@ void ChunkMeshGenerator::generateSubChunkMesh(SubChunk* subChunk) {
                         vertex.position += worldPosition;
                         vertex.data |= lightLevel << OFFSET_LIGHTLEVEL;
                         vertex.data |= face << OFFSET_NORMAL;
-                        vertex.data |= voxel.materialID << OFFSET_MATERIALID;
+                        vertex.data |= voxel << OFFSET_MATERIALID;
                         
                         if (isTransparent) {
                             vertex.data |= 3 << OFFSET_AO;

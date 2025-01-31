@@ -9,7 +9,7 @@ Mat4x4 Camera::getMatProj() {
     return MatrixProjection(fov, aspectRatio, nearPlane, farPlane);
 }
 
-Mat4x4 Camera::getMatCamera() {
+Mat4x4 Camera::getMatViewProj() {
     return getMatProj() * getMatView();
 }
 
@@ -32,6 +32,7 @@ void Camera::processKeyboardInput(const std::string& direction, float deltaTime,
     if (direction == "DOWN")
         position.y -= velocity;
 
+    isDirty = true;
 }
 
 void Camera::processMouseInput(float xOffset, float yOffset, float sensitivity) {
@@ -47,6 +48,8 @@ void Camera::processMouseInput(float xOffset, float yOffset, float sensitivity) 
 
     // Update camera vectors
     updateCameraVectors();
+
+    isDirty = true;
 }
 
 void Camera::updateCameraVectors() {

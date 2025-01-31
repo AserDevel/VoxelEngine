@@ -1,22 +1,18 @@
 #include "world/WorldManager.h"
 #include <queue>
 
-Vec2 WorldManager::worldToChunkPosition(const Vec3& worldPosition) const {
-    return floor(worldPosition.xz() / chunkSize);
+Vec3 WorldManager::worldToChunkPosition(const Vec3& worldPosition) const {
+    return floor(worldPosition / chunkSize);
 }
 
-Vec2 WorldManager::worldToChunkPosition(const Vec2& worldPosition2D) const {
-    return floor(worldPosition2D / chunkSize);
+Chunk* WorldManager::addChunk(const Vec3& chunkPosition, int bufferOffset) {
+    Vec3 worldPosition = chunkPosition * chunkSize;
+    chunkCache[chunkPosition] = std::make_unique<Chunk>(worldPosition, bufferOffset);
+    return chunkCache[chunkPosition].get();
 }
 
-Chunk* WorldManager::addChunk(const Vec2& chunkPosition2D) {
-    Vec3 worldPosition = Vec3(chunkPosition2D.x * chunkSize, MAX_DEPTH, chunkPosition2D.z * chunkSize); 
-    chunkCache[chunkPosition2D] = std::make_unique<Chunk>(worldPosition);
-    return chunkCache[chunkPosition2D].get();
-}
-
-Chunk* WorldManager::getChunk(const Vec2& chunkPosition2D) const {
-    auto it = chunkCache.find(chunkPosition2D);
+Chunk* WorldManager::getChunk(const Vec3& chunkPosition) const {
+    auto it = chunkCache.find(chunkPosition);
     if (it != chunkCache.end()) {
         return it->second.get();
     }
@@ -24,112 +20,36 @@ Chunk* WorldManager::getChunk(const Vec2& chunkPosition2D) const {
 }
 
 void WorldManager::updateChunks(Vec3 worldCenter) {
-    Vec2 worldCenter2D = worldCenter.xz();
-    Vec2 centerChunkPos = worldToChunkPosition(worldCenter);
+    Vec3 centerChunkPos = worldToChunkPosition(worldCenter);
+    AABB activeBox = {Vec3(centerChunkPos - Vec3(updateDistance)), Vec3(centerChunkPos + Vec3(updateDistance))};
     
-    for (int x = -updateDistance; x <= updateDistance; x++) {
-        for (int z = -updateDistance; z <= updateDistance; z++) {
-            Vec2 chunkPos = centerChunkPos + Vec2(x, z);
+    std::vector<Vec3> chunksToRemove;
+    for (auto& [chunkPos, chunk] : chunkCache) {
+        if (!AABBpointIn(chunkPos, activeBox)) {
+            chunksToRemove.push_back(chunkPos);
+        }
+    }
+    for (auto chunkPos : chunksToRemove) {
+        availableOffsets.push(getChunk(chunkPos)->bufferOffset);
+        chunkCache.erase(chunkPos);
+    }
 
-            Vec2 chunkWorldCenter2D = chunkPos * chunkSize + Vec2(chunkSize / 2.0f, chunkSize / 2.0f);
-            
-            float distance = length(chunkWorldCenter2D - worldCenter2D); 
-            if (distance > updateDistance * chunkSize) continue;
-
-            auto chunk = getChunk(chunkPos);
-            if (!chunk) {
-                chunk = addChunk(chunkPos);
-                chunkGenerator.generateChunk(chunk); // Generate general height and biome
-            }
-
-            if (chunk->state == ChunkState::PENDING || chunk->state == ChunkState::REMESHING) continue;
-
-            // Generate features and mark chunk as it's ready for meshing
-            if (chunk->state == ChunkState::GENERATED && neighboursGenerated(chunk)) {
-                chunkGenerator.generateFeatures(chunk);
-            }
-                        
-            // Mesh newly generated chunks
-            if (chunk->state == ChunkState::READY && neighboursReady(chunk)) {
-                chunk->state = ChunkState::PENDING;
-                threadManager.addTask([this, chunk]() {
-                    //int start, end;
-                    //start = SDL_GetTicks();
-                    meshGenerator.generateChunkMeshes(chunk);
-                    //end = SDL_GetTicks();
-                    //std::cout << "Chunk generated in: " << end - start << " ticks" << std::endl;
-                });
-            }
-            
-            // Load newly meshed chunks
-            if (chunk->state == ChunkState::MESHED) {   
-                chunk->loadMeshes();
-            }
-
-            // Remesh dirty chunks
-            if (chunk->isDirty && chunk->state >= ChunkState::LOADED) {
-                chunk->state = ChunkState::REMESHING;
-                threadManager.addTask([this, chunk]() {
-                    meshGenerator.generateChunkMeshes(chunk);
-                });
+    int idx = 0;
+    for (int z = -updateDistance; z <= updateDistance; z++) {
+        for (int y = -updateDistance; y <= updateDistance; y++) {
+            for (int x = -updateDistance; x <= updateDistance; x++, idx++) {
+                Vec3 chunkPos = centerChunkPos + Vec3(x, y, z);
+                auto chunk = getChunk(chunkPos);
+                if (!chunk) {
+                    int offset = availableOffsets.front();
+                    availableOffsets.pop();
+                    chunk = addChunk(chunkPos, offset);
+                    chunkGenerator.generateChunk(chunk);
+                }
+                activeChunks[idx] = chunk;
             }
         }  
     }
-
-    // Cleanup out of range chunks
-    std::vector<Vec2> chunksToRemove;
-    for (auto& [chunkPos, chunk] : chunkCache) {
-        Vec2 chunkWorldCenter2D = chunkPos * chunkSize + Vec2(chunkSize / 2.0f, chunkSize / 2.0f);
-        float distance = length(chunkWorldCenter2D - worldCenter2D);
-        if (distance > updateDistance * chunkSize) {
-            if (chunk->state != ChunkState::PENDING && !neighbourIsPending(chunk.get())) {
-                chunksToRemove.push_back(chunkPos);
-            }
-        }
-    }
-    for (const auto& chunkPos : chunksToRemove) {
-        chunkCache.erase(chunkPos);
-    }
-}
-
-const Vec2 neighbourPositions[8] = { Vec2(1, 0), Vec2(-1, 0), Vec2(0, 1), Vec2(0, -1), Vec2(1, 1), Vec2(1, -1), Vec2(-1, 1), Vec2(-1, -1) };    
-
-bool WorldManager::neighboursGenerated(Chunk* chunk) {    
-    for (int i = 0; i < 8; i++) {
-        auto neighbourChunk = getChunk(worldToChunkPosition(chunk->worldPosition) + neighbourPositions[i]);
-        if (!neighbourChunk || neighbourChunk->state < ChunkState::GENERATED) return false;
-    }
-    
-    return true;
-}
-
-bool WorldManager::neighboursReady(Chunk* chunk) {    
-    for (int i = 0; i < 8; i++) {
-        auto neighbourChunk = getChunk(worldToChunkPosition(chunk->worldPosition) + neighbourPositions[i]);
-        if (!neighbourChunk || neighbourChunk->state < ChunkState::READY) return false;
-    }
-    
-    return true;
-}
-
-bool WorldManager::neighbourIsPending(Chunk* chunk) {    
-    for (int i = 0; i < 8; i++) {
-        auto neighbourChunk = getChunk(worldToChunkPosition(chunk->worldPosition) + neighbourPositions[i]);
-        if (!neighbourChunk) continue;
-        if (neighbourChunk->state == ChunkState::PENDING) return true;
-    }
-    
-    return false;
-}
-
-std::vector<Chunk*> WorldManager::getLoadedChunks() {
-    std::vector<Chunk*> loadedChunks;
-    for (auto& [chunkPos, chunk] : chunkCache) {
-        if (chunk->state >= ChunkState::LOADED) {
-            loadedChunks.push_back(chunk.get());
-        }
-    }
-    return loadedChunks;
 }
 
 // Voxel operations
@@ -138,108 +58,37 @@ void WorldManager::addVoxel(const Vec3& worldPosition, const Voxel& voxel) {
     if (!chunk) {
         return;
     }
-    uint8_t initialLightLevel = getLightLevelAt(worldPosition);
-    if (chunk->addVoxel(worldPosition, voxel)) {
-        markDirty(worldPosition);
-        Vec2 worldPosition2D = worldPosition.xz();
-        if (chunk->getHeightAt(worldPosition2D) < worldPosition.y) {
-            chunk->setHeightAt(worldPosition2D, worldPosition.y);
-            updateSkyLightAt(worldPosition2D);
-        } else {
-            lightGenerator.removeLight(worldPosition, initialLightLevel);
-        }
+    if (chunk->addVoxel(worldPosition - chunk->worldPosition, voxel)) {
+        chunk->isDirty = true;
+        chunk->isEmpty = false;
     }
 }
 
 void WorldManager::removeVoxel(const Vec3& worldPosition) {
     auto chunk = getChunk(worldToChunkPosition(worldPosition));
     if (!chunk) return;
-    if (chunk->removeVoxel(worldPosition)) {
-        markDirty(worldPosition);
-        Vec2 worldPosition2D = worldPosition.xz();
-        if (chunk->getHeightAt(worldPosition2D) == worldPosition.y) {
-            chunk->updateHeightAt(worldPosition2D);
-            updateSkyLightAt(worldPosition2D);
-        } else {
-            uint8_t initialLightLevel = lightGenerator.calculateLightAt(worldPosition);
-            lightGenerator.propagateLight(worldPosition, initialLightLevel);
-        }
+    if (chunk->removeVoxel(worldPosition - chunk->worldPosition)) {
+        chunk->isDirty = true;
     }
 }
 
-Voxel* WorldManager::getVoxelAt(const Vec3& worldPosition) {
+Voxel& WorldManager::getVoxel(const Vec3& worldPosition) {
     auto chunk = getChunk(worldToChunkPosition(worldPosition));
     if (!chunk) {
-        return nullptr;
+        Voxel air = 0;
+        return air;
     }
-    return chunk->getVoxelAt(worldPosition);
+    return chunk->getVoxel(worldPosition - chunk->worldPosition);
 }
 
 bool WorldManager::positionIsSolid(const Vec3& worldPosition) {
-    Voxel* voxel = getVoxelAt(worldPosition);
-    if (!voxel) return false;
-    return voxel->materialID != IDX_AIR;
+    Voxel& voxel = getVoxel(worldPosition);
+    return voxel.isSolid();
 }
 
 bool WorldManager::positionIsTransparent(const Vec3& worldPosition) {
-    Voxel* voxel = getVoxelAt(worldPosition);
-    if (!voxel) return true;
-    return materials[voxel->materialID].isTransparent;
-}
-
-uint8_t WorldManager::getLightLevelAt(const Vec3& worldPosition) {
-    Voxel* voxel = getVoxelAt(worldPosition);
-    if (!voxel) return 0x0F;
-    return voxel->lightLevel;
-}
-
-void WorldManager::markDirty(const Vec3& worldPosition) {
-    auto chunk = getChunk(worldToChunkPosition(worldPosition));
-    if (!chunk) return;
-    chunk->markDirty(worldPosition);
-
-    if (chunk->postitionIsEdge(worldPosition)) {
-        const Vec3 neighbours[4] = {Vec3(1, 0, 0), Vec3(-1, 0, 0), Vec3(0, 0, 1), Vec3(0, 0, -1)}; 
-        for (int n = 0; n < 4; n++) {
-            Vec3 neighbourPos = worldPosition + neighbours[n];
-            if (!chunk->positionInBounds(neighbourPos)) {
-                auto neighbour = getChunk(worldToChunkPosition(neighbourPos));
-                if (!neighbour) continue;
-                neighbour->markDirty(neighbourPos);
-            }
-        }
-    }
-}
-
-void WorldManager::updateSkyLightAt(const Vec2 worldPosition2D) {
-    std::vector<Vec3> lightToRemove;
-    std::vector<Vec3> lightToPropagate;
-    
-    auto chunk = getChunk(worldToChunkPosition(worldPosition2D));
-    if (!chunk) return;
-    
-    int height = chunk->getHeightAt(worldPosition2D);
-    for (int y = MAX_HEIGHT; y >= MAX_DEPTH; y--) {
-        Vec3 wp = Vec3(worldPosition2D.x, y, worldPosition2D.z);
-        Voxel* voxel = chunk->getVoxelAt(wp);
-        if (!voxel) continue;
-        if (materials[voxel->materialID].isTransparent) {
-            if (y > height) {
-                if (voxel->materialID == IDX_AIR && (voxel->lightLevel & 0x0F) != 15) {
-                    lightToPropagate.push_back(wp);
-                }
-            } else if ((voxel->lightLevel & 0x0F) == 15) {
-                voxel->lightLevel--;
-                lightToRemove.push_back(wp);
-            } 
-        }
-    }
-    for (auto& worldPos : lightToPropagate) {
-        lightGenerator.propagateLight(worldPos, 0x0F);
-    }
-    for (auto& worldPos : lightToRemove) {
-        lightGenerator.removeLight(worldPos, 0x0F);
-    }
+    Voxel& voxel = getVoxel(worldPosition);
+    return voxel.isTransparent();
 }
 
 bool WorldManager::worldRayDetection(const Vec3& startPoint, const Vec3& endPoint, Vec3& voxelPos, Vec3& normal) {
@@ -249,13 +98,11 @@ bool WorldManager::worldRayDetection(const Vec3& startPoint, const Vec3& endPoin
     
     float tEntry = 0.0f, tEntryNext = 0.0f, tExit = 0.0f;
 
-    Vec3 boundary = Vec3(0.5, 0.5, 0.5);
-
-    voxelPos = floor(startPoint + boundary);
+    voxelPos = floor(startPoint);
     normal = Vec3(0, 0, 0);
     while (tEntry <= rayLength) {
-        auto voxel = getVoxelAt(voxelPos);
-        if (voxel && !materials[voxel->materialID].isTransparent) {
+        auto voxel = getVoxel(voxelPos);
+        if (!voxel.isTransparent()) {
             return true;
         }
 
@@ -268,9 +115,9 @@ bool WorldManager::worldRayDetection(const Vec3& startPoint, const Vec3& endPoin
         Vec3 voxelPosY = voxelPos + Vec3(0, step.y, 0);
         Vec3 voxelPosZ = voxelPos + Vec3(0, 0, step.z);
 
-        AABB voxelBoxX = { voxelPosX - boundary, voxelPosX + boundary };
-        AABB voxelBoxY = { voxelPosY - boundary, voxelPosY + boundary };
-        AABB voxelBoxZ = { voxelPosZ - boundary, voxelPosZ + boundary };
+        AABB voxelBoxX = { voxelPosX, voxelPosX + Vec3(1) };
+        AABB voxelBoxY = { voxelPosY, voxelPosY + Vec3(1) };
+        AABB voxelBoxZ = { voxelPosZ, voxelPosZ + Vec3(1) };
 
         if (AABBrayDetection(rayPos, rayDir, voxelBoxX, normal, tEntryNext, tExit)) {
             voxelPos = voxelPosX;

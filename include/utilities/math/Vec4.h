@@ -13,9 +13,13 @@ struct Vec4 {
     union { float b = 0, z; };
     union { float a = 1, w; };
     
-    inline Vec4(float x = 0, float y = 0, float z = 0, float w = 1) : 
+    inline Vec4() : x(0), y(0), z(0), w(1) {}
+
+    inline Vec4(float x, float y, float z, float w = 1.0) : 
         x(x), y(y), z(z), w(w) {};
-        
+
+    inline Vec4(float xyz, float w = 1.0) : 
+        x(xyz), y(xyz), z(xyz), w(w) {};    
     
     inline bool operator==(const Vec4& other) const {
         const float epsilon = 1e-5f;  // Precision tolerance
@@ -93,6 +97,10 @@ struct Vec4 {
 
     inline Vec2 xz() const {
         return Vec2(this->x, this->z);
+    }
+
+    inline Vec2 yz() const {
+        return Vec2(this->y, this->z);
     }
 
     inline Vec3 toCartesian() const {

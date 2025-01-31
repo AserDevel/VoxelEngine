@@ -1,68 +1,41 @@
 #pragma once
 
-#include "SubChunk.h"
-#include "utilities/standard.h"
-#include "physics/AABB.h"
+#include "Voxel.h"
+#include "rendering/Mesh.h"
 #include <unordered_set>
 
-#define MAX_HEIGHT 16 * SUBCHUNK_SIZE - 1
-#define MAX_DEPTH 0
-
-enum class ChunkState {
-    GENERATED,
-    READY,
-    PENDING,
-    MESHED,
-    LOADED,
-    REMESHING
-};
+#define CHUNKSIZE 16
 
 class Chunk {
-private:
-    static const int chunkSize = SUBCHUNK_SIZE;
-    static const int maxHeight = MAX_HEIGHT;
-    static const int maxDepth = MAX_DEPTH;
-
-    // flat 2D array containing the height of each column in the chunk         
-    int heightMap[chunkSize * chunkSize] = {MAX_DEPTH};
-
-    int worldToChunkHeight(int worldHeight) const;
-
-    // Subchunk management
-    SubChunk* addSubChunk(int worldHeight);
-    SubChunk* getSubChunk(int worldHeight) const;
+    // Takes a local position and returns the index of the voxel if it exists within the subchunk
+    int positionToIndex(const Vec3& localPosition) const;
 
 public:
-    const Vec3 worldPosition; 
+    static const int size = CHUNKSIZE;
+    static const int numVoxels = size * size * size;
+    
+    const Vec3 worldPosition;
+    const int bufferOffset;
+
+    Voxel voxels[numVoxels];
+
+    bool isEmpty = true;
     bool isDirty = true;
 
-    // subchunks mapped vertically by chunkHeight 
-    std::unordered_map<int, std::unique_ptr<SubChunk>> subChunks;  
-        
-    ChunkState state = ChunkState::READY;
+    Chunk(Vec3 worldPosition, int bufferOffset) : worldPosition(worldPosition), bufferOffset(bufferOffset) {}
 
-    Chunk(Vec3 worldPosition) 
-        : worldPosition(worldPosition) {}
     ~Chunk() {}
 
-    void markDirty(const Vec3& worldPosition);
-
-    // bounds Checking
-    bool positionInBounds(const Vec3& worldPosition) const;
-    bool postitionIsEdge(const Vec3& worldPosition) const;
-
     // voxel manipulation
-    bool addVoxel(const Vec3& worldPosition, const Voxel& voxel);
-    bool removeVoxel(const Vec3& worldPosition);
-    Voxel* getVoxelAt(const Vec3& worldPosition);
+    bool addVoxel(const Vec3& localPosition, const Voxel& newVoxel);
+    bool removeVoxel(const Vec3& localPosition);    
+    Voxel& getVoxel(const Vec3& localPosition);
 
-    // height map manipulation
-    int getHeightAt(const Vec2& worldPosition2D) const;
-    void setHeightAt(const Vec2& worldPosition2D, int height);
-    void updateHeightAt(const Vec2& worldPosition2D);
+    // Bounds checking
+    bool positionInBounds(const Vec3& localPosition) const;
+    bool positionIsEdge(const Vec3& localPosition) const; 
 
-    void loadMeshes();
-    void draw();
-    void drawTransparent();
-    void drawOutlines();
+    // efficient voxel iteration with direct access to precomputed position and voxel
+    void forEachVoxel(std::function<void(const Vec3&, const Voxel&)> callback) const;    
+    void forEachVoxel(std::function<void(const Vec3&, Voxel&)> callback);
 };

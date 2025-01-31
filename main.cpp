@@ -58,7 +58,6 @@ bool initializeWindow(SDL_Window** window, SDL_GLContext* context) {
     }
 
     glViewport(0, 0, WINDOW_SIZE*ASPECT_RATIO, WINDOW_SIZE);
-    glEnable(GL_DEPTH_TEST);
 
     std::cout << "OpenGL Version: " << glGetString(GL_VERSION) << std::endl;
     return true;
@@ -97,18 +96,18 @@ int main(int argc, char* argv[]) {
     }
     
     Camera camera = Camera(
-        Vec3(0.0f, 250.0f, 0.0f),  // Position
+        Vec3(5.0f, 10.0, 5.0f),  // Position
         Vec3(0.0f, 1.0f, 0.0f),    // Up vector
         0,                         // Yaw
-        toRad(45.0),               // Pitch
+        0,                         // Pitch
         90.0f,                     // FOV
-        1 / ASPECT_RATIO,          // Aspect ratio
-        0.1f,                      // Near plane
-        1000.0f                    // Far plane
+        ASPECT_RATIO,              // Aspect ratio
+        1.0f,                      // Near plane
+        5000.0f                    // Far plane
     );
 
     ThreadManager threadManager(4);
-    WorldManager worldManager(threadManager, 12);
+    WorldManager worldManager(threadManager, 8);
     Renderer renderer(worldManager, camera);
 
     float lastFrameTime = SDL_GetTicks() / 1000.0f;
@@ -135,7 +134,6 @@ int main(int argc, char* argv[]) {
                     Vec3 normal;
                     if (worldManager.worldRayDetection(startPoint, endPoint, voxelPos, normal)) {
                         worldManager.removeVoxel(voxelPos);
-
                     }
                 } else if (event.button.button == SDL_BUTTON_RIGHT) {
                     Vec3 startPoint = camera.position;
@@ -143,7 +141,7 @@ int main(int argc, char* argv[]) {
                     Vec3 voxelPos;
                     Vec3 normal;
                     if (worldManager.worldRayDetection(startPoint, endPoint, voxelPos, normal)) {
-                        worldManager.addVoxel(voxelPos + normal, {1, 0, 0});
+                        worldManager.addVoxel(voxelPos + normal, 1);
                     }
                 }
                 break;

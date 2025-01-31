@@ -8,43 +8,88 @@ void Shader::use() {
 }
 
 void Shader::bindFloat(float f, const char* name) {
+    // Get uniform location    
     GLuint uniformLocation = glGetUniformLocation(programID, name);
-	if (uniformLocation == -1) {
-		std::cerr << "Uniform '" << name << "' not found in shader program" << std::endl;
-	} else {
-		glUniform1f(uniformLocation, f);
-		GLenum error = glGetError();
-		if (error != GL_NO_ERROR) {
-            std::cerr << "Error while setting uniform '" << name << "': " << glGetError() << std::endl;
-        }
-	}
+    
+    // Bind uniform
+    glUniform1f(uniformLocation, f);
+    
+    // Check for errors
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "Error while setting uniform '" << name << "': " << glGetError() << std::endl;
+    }
 }
 
-void Shader::bindVector(Vec3 vector, const char* name) {
+void Shader::bindInteger(int i, const char* name) {
+    // Get uniform location
     GLuint uniformLocation = glGetUniformLocation(programID, name);
-	if (uniformLocation == -1) {
-		std::cerr << "Uniform '" << name << "' not found in shader program" << std::endl;
-	} else {
-		glUniform3f(uniformLocation, vector.x, vector.y, vector.z);
-		GLenum error = glGetError();
-		if (error != GL_NO_ERROR) {
-            std::cerr << "Error while setting uniform '" << name << "': " << glGetError() << std::endl;
-        }
-	}
 
+    // Bind uniform
+    glUniform1i(uniformLocation, i);
+    
+    // Check for errors
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "Error while setting uniform '" << name << "': " << glGetError() << std::endl;
+    }
+}
+
+
+void Shader::bindVector2(Vec2 vector, const char* name) {
+    // Get uniform location
+    GLuint uniformLocation = glGetUniformLocation(programID, name);
+    
+    // Bind uniform
+    glUniform2f(uniformLocation, vector.x, vector.y);
+    
+    // Check errors
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "Error while setting uniform '" << name << "': " << glGetError() << std::endl;
+    }
+}
+
+void Shader::bindVector3(Vec3 vector, const char* name) {
+    // Get uniform location
+    GLuint uniformLocation = glGetUniformLocation(programID, name);
+    
+    // Bind uniform
+    glUniform3f(uniformLocation, vector.x, vector.y, vector.z);
+    
+    // Check errors
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "Error while setting uniform '" << name << "': " << glGetError() << std::endl;
+    }
+}
+
+void Shader::bindVector4(Vec4 vector, const char* name) {
+    // Get uniform location
+    GLuint uniformLocation = glGetUniformLocation(programID, name);
+    
+    // Bind uniform
+    glUniform4f(uniformLocation, vector.x, vector.y, vector.z, vector.w);
+    
+    // Check errors
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "Error while setting uniform '" << name << "': " << glGetError() << std::endl;
+    }
 }
 
 void Shader::bindMatrix(Mat4x4 matrix, const char* name) {
+    // get uniform location
     GLuint uniformLocation = glGetUniformLocation(programID, name);
-	if (uniformLocation == -1) {
-		std::cerr << "Uniform '" << name << "' not found in shader program" << std::endl;
-	} else {
-		glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &matrix[0][0]);
-		GLenum error = glGetError();
-		if (error != GL_NO_ERROR) {
-            std::cerr << "Error while setting uniform '" << name << "': " << glGetError() << std::endl;
-        }
-	}
+    
+    // bind matrix uniform
+    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, &matrix[0][0]);
+
+    // check errors
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "Error while setting uniform '" << name << "': " << glGetError() << std::endl;
+    }
 }
 
 void Shader::bindMaterials(Material materials[256]) {
@@ -59,26 +104,6 @@ void Shader::bindMaterials(Material materials[256]) {
 	}
 }
 
-void Shader::bindLights(std::vector<LightData> lights) {
-    glUniform1i(glGetUniformLocation(programID, "numLights"), lights.size());
-    for (size_t i = 0; i < lights.size(); ++i) {
-        std::string lightBase = "lights[" + std::to_string(i) + "]";
-
-        glUniform3fv(glGetUniformLocation(programID, (lightBase + ".position").c_str()), 1, &lights[i].position.x);
-        glUniform3fv(glGetUniformLocation(programID, (lightBase + ".color").c_str()), 1, &lights[i].color.x);
-        glUniform1f(glGetUniformLocation(programID, (lightBase + ".intensity").c_str()), lights[i].intensity);
-
-        glUniform1f(glGetUniformLocation(programID, (lightBase + ".constant").c_str()), lights[i].constant);
-        glUniform1f(glGetUniformLocation(programID, (lightBase + ".linear").c_str()), lights[i].linear);
-        glUniform1f(glGetUniformLocation(programID, (lightBase + ".quadratic").c_str()), lights[i].quadratic);
-    }
-
-    GLenum error = glGetError();
-	if (error != GL_NO_ERROR) {
-		std::cerr << "Error while setting uniform lights: " << error << "\n";
-	}
-}
-
 void Shader::bindTexture(GLuint textureID, const char* name, int index) {
     // Bind the texture
     glActiveTexture(GL_TEXTURE0 + index);
@@ -86,69 +111,80 @@ void Shader::bindTexture(GLuint textureID, const char* name, int index) {
 
     // Get the uniform location
     GLuint uniformLocation = glGetUniformLocation(programID, name);
+
+    // bind uniform to index
     glUniform1i(uniformLocation, index);
-	if (uniformLocation == -1) {
-		std::cerr << "Uniform '" << name << "' not found in shader program\n";
-	} else {
-		glUniform1i(uniformLocation, index);
-		GLenum error = glGetError();
-		if (error != GL_NO_ERROR) {
-			std::cerr << "Error while setting uniform '" << name <<"': " << error << "\n";
-		}
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "Error while setting uniform '" << name <<"': " << error << "\n";
 	}
 }
 
 void Shader::bindTextureArray(GLuint textureArrayID) {
+    // Bind the textureArray    
     glActiveTexture(GL_TEXTURE0); // Use texture unit 0 (first texture)
     glBindTexture(GL_TEXTURE_2D_ARRAY, textureArrayID);
 
-    GLuint uniformLocation = glGetUniformLocation(programID, "textureArray");
-	if (uniformLocation == -1) {
-		std::cerr << "Uniform 'textureArray' not found in shader program\n";
-	} else {
-		glUniform1i(uniformLocation, 0); // Corresponds to GL_TEXTURE0
-		GLenum error = glGetError();
-		if (error != GL_NO_ERROR) {
-			std::cerr << "Error while setting uniform 'textureArray': " << error << "\n";
-		}
-	}
+    // Get the uniform location
+    GLuint uniformLocation = glGetUniformLocation(programID, "textureArray"); 
+    
+    // bind uniform to index
+    glUniform1i(uniformLocation, 0); // Corresponds to GL_TEXTURE0
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "Error while setting uniform 'textureArray': " << error << "\n";
+    }
 }
 
-// Function to load and split shaders
-std::unordered_map<std::string, std::string> Shader::loadShadersFromFile(const std::string& filePath) {
+std::string Shader::readFile(const std::string filePath) {    
     std::ifstream file(filePath);
     if (!file.is_open()) {
-        throw std::runtime_error("Failed to open shader file: " + filePath);
+        throw std::runtime_error("Failed to open file: " + filePath);
     }
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
 
-    enum ShaderType { NONE = -1, VERTEX, FRAGMENT };
-    ShaderType currentType = NONE;
+// Function to preprocess the shader and handle #include
+std::string Shader::preprocessShader(const std::string& filePath, std::unordered_set<std::string>& processedFiles) {
+    // Avoid reprocessing the same file
+    if (processedFiles.find(filePath) != processedFiles.end()) {
+        return ""; // File already processed
+    }
+    processedFiles.insert(filePath);
 
-    std::unordered_map<std::string, std::string> shaderSources;
-    shaderSources["vertex"] = "";
-    shaderSources["fragment"] = "";
-
+    // Read the main shader file
+    std::string shaderCode = readFile(filePath);
+    std::stringstream output;
+    std::istringstream shaderStream(shaderCode);
     std::string line;
-    std::stringstream ss[2]; // Two streams for vertex and fragment shaders
 
-    while (std::getline(file, line)) {
-        if (line.find("#shader") != std::string::npos) {
-            if (line.find("vertex") != std::string::npos) {
-                currentType = VERTEX;
-            } else if (line.find("fragment") != std::string::npos) {
-                currentType = FRAGMENT;
+    // Process each line
+    while (std::getline(shaderStream, line)) {
+        if (line.find("#include") != std::string::npos) {
+            // Extract the included file name
+            size_t start = line.find("\"") + 1;
+            size_t end = line.find("\"", start);
+            if (start == std::string::npos || end == std::string::npos) {
+                throw std::runtime_error("Malformed #include directive in " + filePath + ": " + line);
             }
+            std::string includePath = line.substr(start, end - start);
+
+            // Recursively process the included file
+            output << preprocessShader(includePath, processedFiles);
         } else {
-            if (currentType != NONE) {
-                ss[currentType] << line << '\n';
-            }
+            // Regular line, just add it
+            output << line << '\n';
         }
     }
 
-    shaderSources["vertex"] = ss[VERTEX].str();
-    shaderSources["fragment"] = ss[FRAGMENT].str();
-    
-    return shaderSources;
+    return output.str();
+}
+
+std::string Shader::preprocessShader(const std::string& filePath) {
+    std::unordered_set<std::string> processedFiles;
+    return preprocessShader(filePath, processedFiles);
 }
 
 // compile shader program from source code
@@ -218,13 +254,23 @@ GLuint Shader::compileShaderProgram(const char* vertexSourceCode, const char* fr
 }
 
 // load and compile shader program from file
-Shader::Shader(const char* shaderFile) {
-    std::unordered_map<std::string, std::string> shaders = loadShadersFromFile(shaderFile);
+Shader::Shader(const char* vertexShaderFile) {
+    const char* vertexShaderSource = preprocessShader(vertexShaderFile).c_str();
 
-    const char* vertexShaderSource = shaders["vertex"].c_str();
-    const char* fragmentShaderSource = shaders["fragment"].c_str();
+    GLuint compiledProgram = compileShaderProgram(vertexShaderSource, nullptr);
+    if (compiledProgram == 0) {
+        std::cerr << "Shader compilation or linking failed!" << std::endl;
+    }
 
-    GLuint compiledProgram = compileShaderProgram(vertexShaderSource, fragmentShaderSource);
+    this->programID = compiledProgram;
+}
+
+// load and compile shader program from file
+Shader::Shader(const char* vertexShaderFile, const char* fragmentShaderFile) {
+    std::string vertexShaderSource = preprocessShader(vertexShaderFile);
+    std::string fragmentShaderSource = preprocessShader(fragmentShaderFile);
+
+    GLuint compiledProgram = compileShaderProgram(vertexShaderSource.c_str(), fragmentShaderSource.c_str());
     if (compiledProgram == 0) {
         std::cerr << "Shader compilation or linking failed!" << std::endl;
     }

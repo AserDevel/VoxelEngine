@@ -9,8 +9,13 @@ struct Vec2 {
     union { float x = 0, u; };
     union { float y = 0, v, z; };
 
-    inline Vec2(float x = 0, float y = 0) : 
+    inline Vec2() : x(0), y(0) {}
+
+    inline Vec2(float x, float y) : 
         x(x), y(y) {}
+
+    inline Vec2(float xy) : 
+        x(xy), y(xy) {};
 
     inline bool operator==(const Vec2& other) const {
         const float epsilon = 1e-5f;  // Precision tolerance
@@ -81,23 +86,6 @@ struct Vec2 {
     }
 };
 
-// Hash function for Vec2
-struct Vec2Hash {
-    std::size_t operator()(const Vec2& v) const {
-        auto hashCombine = [](std::size_t seed, std::size_t value) {
-            return seed ^ (value + 0x9e3779b9 + (seed << 6) + (seed >> 2));
-        };
-
-        int xInt = static_cast<int>(v.x * 1000);  // Scale to fixed precision
-        int yInt = static_cast<int>(v.y * 1000);
-
-        std::size_t hash = std::hash<int>()(xInt);
-        hash = hashCombine(hash, std::hash<int>()(yInt));
-
-        return hash;
-    }
-};
-
 inline float dot(const Vec2& v1, const Vec2& v2) {
     return (v1.x * v2.x + v1.y * v2.y);
 }
@@ -127,5 +115,21 @@ inline Vec2 abs(const Vec2 vec) {
     return Vec2(std::abs(vec.x), std::abs(vec.y));
 }
 
+// Hash function for Vec2
+struct Vec2Hash {
+    std::size_t operator()(const Vec2& v) const {
+        auto hashCombine = [](std::size_t seed, std::size_t value) {
+            return seed ^ (value + 0x9e3779b9 + (seed << 6) + (seed >> 2));
+        };
+
+        int xInt = static_cast<int>(v.x * 1000);  // Scale to fixed precision
+        int yInt = static_cast<int>(v.y * 1000);
+
+        std::size_t hash = std::hash<int>()(xInt);
+        hash = hashCombine(hash, std::hash<int>()(yInt));
+
+        return hash;
+    }
+};
 
 #endif

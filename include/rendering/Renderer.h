@@ -8,49 +8,71 @@
 
 class Renderer {
 private:
-    float globalAmbience = 0.2f;
+    static const int chunkSize = CHUNKSIZE;
+
+    int frame = 0;
+    int screenWidth, screenHeight;
+    
+    // World buffers
+    GLuint voxelBuffer;
+    GLuint chunkOffsetBuffer;
+
+    // Geometry buffer
+    GLuint gBuffer;
+    GLuint positionTex, normalTex, colorTex;
+
+    // Light buffers
+    GLuint frameBuffers[2], globalLightTextures[2], specialLightTextures[2];
+    GLuint currentBuffer = 0;
+
+    GLuint blueNoiseTex;
+
+    GLuint markerVAO, markerVBO;
+    GLuint screenVAO, screenVBO;
 
     Vec3 lightDir;
     Vec3 lightColor;
 
-    Shader shader = Shader("assets/shaders/standardShader.glsl");
-    Shader liquidShader = Shader("assets/shaders/liquidShader.glsl");
-    Shader markerShader = Shader("assets/shaders/marker.glsl");
-    Shader lineShader = Shader("assets/shaders/lineShader.glsl");
-
-    static const int chunkSize = SUBCHUNK_SIZE;
+    Shader monoColorShader = Shader("assets/shaders/basic2D.vert", "assets/shaders/monoColor.frag");
+    Shader geometryShader = Shader("assets/shaders/basic3D.vert", "assets/shaders/geometry.frag");
+    Shader globalLightShader = Shader("assets/shaders/basic3D.vert", "assets/shaders/globalLight.frag");
+    Shader specialLightShader = Shader("assets/shaders/basic3D.vert", "assets/shaders/specialLight.frag");
+    Shader denoiser = Shader("assets/shaders/basic3D.vert", "assets/shaders/denoiser.frag");
+    Shader assembler = Shader("assets/shaders/basic3D.vert", "assets/shaders/assembler.frag");
 
     Camera& camera;
     WorldManager& worldManager;
-    
-    Shader shadowShader = Shader("assets/shaders/shadowShader.glsl");
-    Shader shadowMap = Shader("assets/shaders/shadowMap.glsl");
-    Shader shadowDebug = Shader("assets/shaders/shadowDebug.glsl");
-
-    GLuint localShadowMap, localDepthMapFBO;
-    GLuint globalShadowMap, globalDepthMapFBO;
-
-    GLuint markerVAO, markerVBO;
-    GLuint markerShaderProgram;
 
 public:
     Renderer(WorldManager& worldManager, Camera& camera)
         : worldManager(worldManager), camera(camera) {
-            loadCenterMarker();
-        }
+        initGLSettings();
+        loadScreenQuad();
+        loadMarker();
+        loadWorldBuffers();
+        loadLightBuffers();
+        loadGBuffer();
+        loadBlueNoiseTexture();
+    }
 
     ~Renderer() {}
 
     void render();
 
 private:
-    void loadCenterMarker();
+    void initGLSettings();
 
-    void initShadowMaps();
+    void loadScreenQuad();
 
-    void generateShadowMaps();
+    void loadMarker();
 
-    void debugShadowMap(GLuint shadowMap);
+    void loadWorldBuffers();
 
-    void debugRay(Vec3 start, Vec3 direction);
+    void updateWorldBuffers();
+
+    void loadLightBuffers();
+
+    void loadGBuffer();
+
+    void loadBlueNoiseTexture();
 };

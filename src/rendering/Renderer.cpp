@@ -1,49 +1,325 @@
 #include "rendering/Renderer.h"
 #include <unordered_set>
+#include "SDL2/SDL_image.h"
 
 void Renderer::render() {
-    auto loadedChunks = worldManager.getLoadedChunks();
-    shader.use();
-    shader.bindVector(Vec3(1, 0.9, 0.9), "skyLightColor");
-    shader.bindVector(Vec3(-0.5, -0.5, -0.5), "skyLightDir");
-    shader.bindMatrix(camera.getMatCamera(), "matCamera");
-    shader.bindMaterials(materials);
-    glDepthMask(GL_TRUE);
-    glEnable(GL_CULL_FACE);
-    for (auto& chunk : loadedChunks) {
-        chunk->draw();
-    }
+    updateWorldBuffers();
+    int worldChunkLen = worldManager.updateDistance * 2 + 1;
+    Vec2 screenSize(screenWidth, screenHeight);
+    Vec3 worldBasePos = worldManager.activeChunks[0]->worldPosition;
+    Vec3 localCamPos = camera.position - worldBasePos;
+    Mat4x4 matViewProj = camera.getMatViewProj();
     
-    liquidShader.use();
-    liquidShader.bindMatrix(camera.getMatCamera(), "matCamera");
-    glDepthMask(GL_FALSE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    for (auto& chunk : loadedChunks) {
-        chunk->drawTransparent();
-    }
-    glDisable(GL_BLEND);
-    glDepthMask(GL_TRUE);
+    // G-buffer pass
+    glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    geometryShader.use();    
+    geometryShader.bindInteger(worldChunkLen, "worldChunkLen");
+    geometryShader.bindVector3(worldBasePos, "worldBasePos");
+    geometryShader.bindVector2(screenSize, "screenSize");
+    geometryShader.bindMatrix(inverse(matViewProj), "invViewProj");
+    geometryShader.bindVector3(localCamPos, "localCamPos");
 
-    /*
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    lineShader.use();
-    lineShader.bindMatrix(camera.getMatCamera(), "matCamera");
-    lineShader.bindVector(Vec3(1, 0, 0), "lineColor");
-    for (auto& chunk : loadedChunks) {
-        chunk->drawOutlines();
-    }
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    */
+    glBindVertexArray(screenVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    // Lighting pass
+    int nextBuffer = 1 - currentBuffer; // Alternate buffers
+
+    glBindFramebuffer(GL_FRAMEBUFFER, frameBuffers[nextBuffer]);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    globalLightShader.use();
+    globalLightShader.bindInteger(camera.isDirty, "cameraMoved");
+    globalLightShader.bindInteger(worldChunkLen, "worldChunkLen");
+    globalLightShader.bindVector3(normalise(Vec3(-0.4, -0.8, -0.7)), "skyLightDir");
+    globalLightShader.bindVector3(Vec3(1.0, 1.0, 1.0), "skyLightColor"); 
+    globalLightShader.bindVector2(Vec2(rand() % 256, rand() % 256), "randomOffset");
+    globalLightShader.bindVector2(screenSize, "screenSize");
+    globalLightShader.bindTexture(positionTex, "positionTex", 0);
+    globalLightShader.bindTexture(normalTex, "normalTex", 1);
+    globalLightShader.bindTexture(blueNoiseTex, "blueNoiseTex", 2);
+
+    glBindVertexArray(screenVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    // Denoise the lighting
+    denoiser.use();
+    denoiser.bindInteger(camera.isDirty, "cameraMoved");
+    denoiser.bindVector2(screenSize, "screenSize");
+    denoiser.bindTexture(globalLightTextures[nextBuffer], "currFrame", 0);
+    denoiser.bindTexture(globalLightTextures[currentBuffer], "prevFrame", 1);
+    denoiser.bindTexture(positionTex, "positionTex", 2);
+    denoiser.bindTexture(normalTex, "normalTex", 3);
+
+    glBindVertexArray(screenVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    
+    specialLightShader.use();
+    specialLightShader.bindInteger(worldChunkLen, "worldChunkLen");
+    specialLightShader.bindMatrix(matViewProj, "matViewProj");
+    specialLightShader.bindVector3(localCamPos, "eyePos");
+    specialLightShader.bindVector3(normalise(Vec3(-0.4, -0.8, -0.7)), "skyLightDir");
+    specialLightShader.bindVector3(Vec3(1.0, 1.0, 1.0), "skyLightColor"); 
+    specialLightShader.bindVector2(screenSize, "screenSize");
+    specialLightShader.bindTexture(positionTex, "positionTex", 0);
+    specialLightShader.bindTexture(normalTex, "normalTex", 1);
+    specialLightShader.bindTexture(globalLightTextures[nextBuffer], "globalLightTex", 2);
+
+    glBindVertexArray(screenVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    
+    // Switch to the main buffer
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Render to screen
+    assembler.use();
+    assembler.bindVector2(screenSize, "screenSize");
+    assembler.bindTexture(globalLightTextures[nextBuffer], "globalLightTex", 0);
+    assembler.bindTexture(specialLightTextures[nextBuffer], "specialLightTex", 1);
+    assembler.bindTexture(colorTex, "colorTex", 2);
+    
+    // Render the screen
+    glBindVertexArray(screenVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 
     // Render the center marker
-    markerShader.use();
+    monoColorShader.use();
+    monoColorShader.bindVector3(Vec3(1, 0, 0), "color"); // Red marker
     glBindVertexArray(markerVAO);
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4); // Draw the quad
+
+    // Swap buffers
+    currentBuffer = nextBuffer;
+
+    // Update camera flag
+    camera.isDirty = false;
+
+    // increase frame count
+    frame++;
+
+    // Unbind
     glBindVertexArray(0);
     glUseProgram(0);
 }
 
+void Renderer::initGLSettings() {
+    glEnable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+
+    screenWidth = 600 * camera.aspectRatio;
+    screenHeight = 600;
+
+    glViewport(0, 0, screenWidth, screenHeight);
+}
+
+void Renderer::updateWorldBuffers() {
+    int numChunks = worldManager.numChunks;
+    int numVoxels = chunkSize * chunkSize * chunkSize;
+
+    // update voxel data
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, voxelBuffer);
+    int chunkOffsets[numChunks];
+    for (int i = 0; i < numChunks; i++) {
+        auto chunk = worldManager.activeChunks[i];
+        if (chunk && chunk->isDirty) {
+            glBufferSubData(GL_SHADER_STORAGE_BUFFER, chunk->bufferOffset * sizeof(Voxel), numVoxels * sizeof(Voxel), chunk->voxels);
+            chunk->isDirty = false;
+        }
+        if (!chunk || chunk->isEmpty) {
+            chunkOffsets[i] = -1;
+        } else {
+            chunkOffsets[i] = chunk->bufferOffset;
+        }
+    }
+
+    // update chunkOffsets
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, chunkOffsetBuffer);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, numChunks * sizeof(int), chunkOffsets);
+
+    // Unbind
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+// Load world buffers based on current settings on update distance/number of chunks
+void Renderer::loadWorldBuffers() {
+    int numVoxels = chunkSize * chunkSize * chunkSize;
+    int numChunks = worldManager.numChunks;
+    int voxelDataSize = numChunks * numVoxels * sizeof(Voxel);
+    
+    glGenBuffers(1, &voxelBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, voxelBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, voxelDataSize, 0, GL_DYNAMIC_READ);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, voxelBuffer);
+
+    glGenBuffers(1, &chunkOffsetBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, chunkOffsetBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, numChunks * sizeof(int), 0, GL_DYNAMIC_READ);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, chunkOffsetBuffer);
+
+    // Unbind
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void Renderer::loadLightBuffers() {
+    for (int i = 0; i < 2; i++) {
+        glGenFramebuffers(1, &frameBuffers[i]);
+        glBindFramebuffer(GL_FRAMEBUFFER, frameBuffers[i]);
+
+        glGenTextures(1, &globalLightTextures[i]);
+        glBindTexture(GL_TEXTURE_2D, globalLightTextures[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenWidth, screenHeight, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, globalLightTextures[i], 0);
+
+        glGenTextures(1, &specialLightTextures[i]);
+        glBindTexture(GL_TEXTURE_2D, specialLightTextures[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenWidth, screenHeight, 0, GL_RGBA, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, specialLightTextures[i], 0);
+
+        GLuint attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+        glDrawBuffers(2, attachments);
+
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            std::cout << "Buffer not complete" << std::endl;
+        }
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void Renderer::loadGBuffer() {
+    glGenFramebuffers(1, &gBuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+
+    glGenTextures(1, &positionTex);
+    glBindTexture(GL_TEXTURE_2D, positionTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, positionTex, 0);
+
+    glGenTextures(1, &normalTex);
+    glBindTexture(GL_TEXTURE_2D, normalTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenWidth, screenHeight, 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, normalTex, 0);
+
+    glGenTextures(1, &colorTex);
+    glBindTexture(GL_TEXTURE_2D, colorTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenWidth, screenHeight, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, colorTex, 0);
+
+    GLuint attachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+    glDrawBuffers(3, attachments);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+        std::cout << "G-buffer not complete" << std::endl;
+    }
+
+    glBindBuffer(GL_FRAMEBUFFER, 0);
+}
+
+// Setup VAO/VBO for the screen quad
+void Renderer::loadScreenQuad() {
+    Vec3 screenQuad[6] = {
+        Vec3(1, 1, 1), Vec3(-1, 1, 1), Vec3(-1, -1, 1), 
+        Vec3(1, -1, 1), Vec3(1, 1, 1), Vec3(-1, -1, 1)
+    };    
+
+    glGenVertexArrays(1, &screenVAO);
+    glGenBuffers(1, &screenVBO);
+    glBindVertexArray(screenVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, screenVBO);
+    
+    glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(Vec3), screenQuad, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vec3), (void*)(0));
+    glEnableVertexAttribArray(0);
+
+    // Unbind VAO and VBO
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+// Setup VAO/VBO for the marker
+void Renderer::loadMarker() {
+    float markerVertices[] = {
+        -0.01f, -0.01f, // Bottom-left
+        0.01f, -0.01f, // Bottom-right
+        0.01f,  0.01f, // Top-right
+        -0.01f,  0.01f  // Top-left
+    };
+
+    glGenVertexArrays(1, &markerVAO);
+    glGenBuffers(1, &markerVBO);
+
+    glBindVertexArray(markerVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, markerVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(markerVertices), markerVertices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Unbind VAO and VBO
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+void Renderer::loadBlueNoiseTexture() {
+	// Load image using SDL_image
+    const char* filepath = "assets/textures/blueNoise256.png";
+    SDL_Surface* surface = IMG_Load(filepath);
+    if (!surface) {
+        std::cerr << "Error loading image: " << filepath << " - " << IMG_GetError() << std::endl;
+        return;
+    }
+    
+    // Convert the surface to OpenGL texture format (RGBA)
+    SDL_Surface* formattedSurface = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);
+    if (formattedSurface->format->format != SDL_PIXELFORMAT_RGBA32) {
+        std::cerr << "Error converting surface to RGBA32: " << filepath << std::endl;
+    }
+    SDL_FreeSurface(surface);
+
+    // load texture to GPU
+    glGenTextures(1, &blueNoiseTex);
+    glBindTexture(GL_TEXTURE_2D, blueNoiseTex);
+
+    // Set texture parameters (filtering, wrapping)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    // Upload the texture to OpenGL
+    glTexImage2D(GL_TEXTURE_2D, 
+                 0, 
+                 GL_RGBA, 
+                 formattedSurface->w, 
+                 formattedSurface->h, 
+                 0, 
+                 GL_RGBA, 
+                 GL_UNSIGNED_BYTE, 
+                 formattedSurface->pixels);
+    
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "Error during texture upload: " << error << "\n";
+    }
+}
+
+/*
 void Renderer::debugRay(Vec3 start, Vec3 direction) {
     Vec3 end = start + direction * 10.0f; // Extend the ray for visualization
 
@@ -86,34 +362,6 @@ void Renderer::debugRay(Vec3 start, Vec3 direction) {
 
     glEnable(GL_DEPTH_TEST); // Re-enable depth testing
     glEnable(GL_CULL_FACE);
-}
-
-// Function to render a marker in the center of the screen
-void Renderer::loadCenterMarker() {
-    // NDC coordinates for a small quad centered on (0, 0)
-    float markerVertices[] = {
-        -0.01f, -0.01f, // Bottom-left
-        0.01f, -0.01f, // Bottom-right
-        0.01f,  0.01f, // Top-right
-        -0.01f,  0.01f  // Top-left
-    };
-
-    // Set up VAO/VBO for the marker
-    glGenVertexArrays(1, &markerVAO);
-    glGenBuffers(1, &markerVBO);
-
-    glBindVertexArray(markerVAO);
-
-    glBindBuffer(GL_ARRAY_BUFFER, markerVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(markerVertices), markerVertices, GL_STATIC_DRAW);
-
-    // Enable vertex attribute
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-    glEnableVertexAttribArray(0);
-
-    // Unbind VAO and VBO
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
 }
 
 void Renderer::generateShadowMaps() {
@@ -262,3 +510,4 @@ void Renderer::debugShadowMap(GLuint shadowMap) {
     // Unbind the VAO
     glBindVertexArray(0);
 }
+*/

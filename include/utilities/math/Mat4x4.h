@@ -2,7 +2,6 @@
 #define MAT4X4_H
 
 #include "Vec4.h"
-#include "Quat.h"
 #include <array>
 
 struct Mat4x4 {
@@ -66,6 +65,39 @@ struct Mat4x4 {
     }
 };
 
+inline Mat4x4 inverse(Mat4x4 m) {
+    Mat4x4 result(1);
+    Mat4x4 temp = m;
+
+    // Perform Gaussian elimination
+    for (int i = 0; i < 4; ++i) {
+        // Find the pivot element
+        float pivot = temp[i][i];
+        if (std::fabs(pivot) < 1e-6) {
+            pivot = (pivot > 0 ? 1e-6f : -1e-6f); // Regularize small pivot
+        }
+
+        // Normalize the pivot row
+        for (int j = 0; j < 4; ++j) {
+            temp[i][j] /= pivot;
+            result[i][j] /= pivot;
+        }
+
+        // Eliminate other rows
+        for (int k = 0; k < 4; ++k) {
+            if (k != i) {
+                float factor = temp[k][i];
+                for (int j = 0; j < 4; ++j) {
+                    temp[k][j] -= factor * temp[i][j];
+                    result[k][j] -= factor * result[i][j];
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
 inline Mat4x4 MatrixRotationX(float pitch) {
     Mat4x4 matrix(1);
     matrix[0][0] = 1.0f;
@@ -103,25 +135,10 @@ inline Mat4x4 MatrixRotation(float pitch, float yaw, float roll) {
     return MatrixRotationX(pitch) * MatrixRotationY(yaw) * MatrixRotationZ(roll);
 }
 
-inline Mat4x4 quatToMatrix(Quat q) {
-    Mat4x4 matrix;
-    matrix[0][0] = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
-    matrix[0][1] = 2.0f * (q.x * q.y - q.z * q.w);
-    matrix[0][2] = 2.0f * (q.x * q.z + q.y * q.w);
-    matrix[1][0] = 2.0f * (q.x * q.y + q.z * q.w);
-    matrix[1][1] = 1.0f - 2.0f * (q.x * q.x + q.z * q.z);
-    matrix[1][2] = 2.0f * (q.y * q.z - q.x * q.w);
-    matrix[2][0] = 2.0f * (q.x * q.z - q.y * q.w);
-    matrix[2][1] = 2.0f * (q.y * q.z + q.x * q.w);
-    matrix[2][2] = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
-    matrix[3][3] = 1.0f;
-    return matrix;
-}
-
 inline Mat4x4 MatrixProjection(float fFovDegrees, float fAspectRatio, float fNear, float fFar) {
     float fFovRad = 1.0f / tanf(fFovDegrees * 0.5f / 180.0f * 3.14159f);
     Mat4x4 matrix(1);
-    matrix[0][0] = fAspectRatio * fFovRad;
+    matrix[0][0] = 1.0 / fAspectRatio * fFovRad;
     matrix[1][1] = fFovRad;
     matrix[2][2] = fFar / (fFar - fNear);
     matrix[3][2] = (-fFar * fNear) / (fFar - fNear);
@@ -150,10 +167,6 @@ inline Mat4x4 MatrixScaling(const Vec3& scale) {
     return matrix;
 }
 
-inline Mat4x4 MatrixWorld(const Vec3& pos, const Quat& rot, const Vec3& scale) {
-    return MatrixTranslation(pos) * quatToMatrix(rot) * MatrixScaling(scale);
-} 
-
 inline Mat4x4 MatrixLookAt(Vec3& eye, Vec3& target, Vec3& up) {
     Vec3 zAxis = eye - target;
     zAxis = normalise(zAxis);
@@ -181,6 +194,5 @@ inline Mat4x4 MatrixOrtho(float left, float right, float bottom, float top, floa
     matrix[2][3] = -(fFar + fNear) / (fFar - fNear);
     return matrix;
 }
-
 
 #endif

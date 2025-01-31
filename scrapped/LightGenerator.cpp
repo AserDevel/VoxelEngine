@@ -45,6 +45,15 @@ uint8_t LightGenerator::calculateLightAt(const Vec3& worldPosition) {
 }
 
 void LightGenerator::removeLight(const Vec3& worldPosition, uint8_t lightLevel) {
+    return;
+}
+
+void LightGenerator::propagateLight(const Vec3& worldPosition, uint8_t lightLevel) {
+    return;
+}
+
+/*
+void LightGenerator::removeLight(const Vec3& worldPosition, uint8_t lightLevel) {
     std::queue<Vec3> positions;
     std::unordered_set<Vec3, Vec3Hash> visited;
 
@@ -131,3 +140,4 @@ void LightGenerator::propagateLight(const Vec3& worldPosition, uint8_t lightLeve
         }
     }
 }
+*/

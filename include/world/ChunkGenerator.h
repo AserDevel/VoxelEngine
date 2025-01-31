@@ -38,7 +38,7 @@ private:
     PerlinNoise perlin;
     std::mt19937 rng;
 
-    static const int chunkSize = SUBCHUNK_SIZE;
+    static const int chunkSize = CHUNKSIZE;
 
     BiomeType getBiome(float height, float humid, float temp);
 

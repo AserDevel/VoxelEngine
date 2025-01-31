@@ -18,6 +18,8 @@ public:
     float nearPlane;     // Near clipping plane
     float farPlane;      // Far clipping plane
 
+    bool isDirty;
+
     // Constructor
     Camera(Vec3 startPosition, Vec3 startUp, float startYaw, float startPitch, 
            float startFOV, float startAspect, float startNear, float startFar)
@@ -31,7 +33,7 @@ public:
 
     Mat4x4 getMatProj();
 
-    Mat4x4 getMatCamera();
+    Mat4x4 getMatViewProj();
 
     void processKeyboardInput(const std::string& direction, float deltaTime, float speed);
 

@@ -10,8 +10,13 @@ struct Vec3 {
     union { float y = 0, g, v; };
     union { float z = 0, b, w; };
 
-    inline Vec3(float x = 0, float y = 0, float z = 0) : 
+    inline Vec3() : x(0), y(0), z(0) {}
+
+    inline Vec3(float x, float y, float z) : 
         x(x), y(y), z(z) {};
+    
+    inline Vec3(float xyz) : 
+        x(xyz), y(xyz), z(xyz) {};
     
     inline bool operator==(const Vec3& other) const {
         const float epsilon = 1e-5f;  // Precision tolerance
@@ -87,27 +92,12 @@ struct Vec3 {
         return Vec2(this->x, this->z);
     }
 
+    inline Vec2 yz() const {
+        return Vec2(this->y, this->z);
+    }
+
     inline void print() const {
         std::cout << this->x << ", " << this->y << ", " << this->z << std::endl;
-    }
-};
-
-// Hash function for Vec3
-struct Vec3Hash {
-    inline std::size_t operator()(const Vec3& v) const {
-        auto hashCombine = [](std::size_t seed, std::size_t value) {
-            return seed ^ (value + 0x9e3779b9 + (seed << 6) + (seed >> 2));
-        };
-
-        int xInt = static_cast<int>(v.x * 1000);  // Scale to fixed precision
-        int yInt = static_cast<int>(v.y * 1000);
-        int zInt = static_cast<int>(v.z * 1000);
-
-        std::size_t hash = std::hash<int>()(xInt);
-        hash = hashCombine(hash, std::hash<int>()(yInt));
-        hash = hashCombine(hash, std::hash<int>()(zInt));
-
-        return hash;
     }
 };
 
@@ -147,5 +137,24 @@ inline Vec3 abs(const Vec3 vec) {
 inline Vec3 mix(const Vec3& vec1, const Vec3& vec2, float t) {
     return Vec3(mix(vec1.r, vec2.r, t), mix(vec1.g, vec2.g, t), mix(vec1.b, vec2.b, t));
 }
+
+// Hash function for Vec3
+struct Vec3Hash {
+    inline std::size_t operator()(const Vec3& v) const {
+        auto hashCombine = [](std::size_t seed, std::size_t value) {
+            return seed ^ (value + 0x9e3779b9 + (seed << 6) + (seed >> 2));
+        };
+
+        int xInt = static_cast<int>(v.x * 1000);  // Scale to fixed precision
+        int yInt = static_cast<int>(v.y * 1000);
+        int zInt = static_cast<int>(v.z * 1000);
+
+        std::size_t hash = std::hash<int>()(xInt);
+        hash = hashCombine(hash, std::hash<int>()(yInt));
+        hash = hashCombine(hash, std::hash<int>()(zInt));
+
+        return hash;
+    }
+};
 
 #endif
