@@ -8,7 +8,8 @@ void Renderer::render() {
     Vec2 screenSize(screenWidth, screenHeight);
     Vec3 worldBasePos = worldManager.activeChunks[0]->worldPosition;
     Vec3 localCamPos = camera.position - worldBasePos;
-    Mat4x4 matViewProj = camera.getMatViewProj();
+    Mat4x4 prevViewProj = viewProj;
+    viewProj = camera.getMatViewProj();
     
     // G-buffer pass
     glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
@@ -18,7 +19,7 @@ void Renderer::render() {
     geometryShader.bindInteger(worldChunkLen, "worldChunkLen");
     geometryShader.bindVector3(worldBasePos, "worldBasePos");
     geometryShader.bindVector2(screenSize, "screenSize");
-    geometryShader.bindMatrix(inverse(matViewProj), "invViewProj");
+    geometryShader.bindMatrix(inverse(viewProj), "invViewProj");
     geometryShader.bindVector3(localCamPos, "localCamPos");
 
     glBindVertexArray(screenVAO);
@@ -30,16 +31,19 @@ void Renderer::render() {
     glBindFramebuffer(GL_FRAMEBUFFER, frameBuffers[nextBuffer]);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    globalLightShader.use();
-    globalLightShader.bindInteger(camera.isDirty, "cameraMoved");
-    globalLightShader.bindInteger(worldChunkLen, "worldChunkLen");
-    globalLightShader.bindVector3(normalise(Vec3(-0.4, -0.8, -0.7)), "skyLightDir");
-    globalLightShader.bindVector3(Vec3(1.0, 1.0, 1.0), "skyLightColor"); 
-    globalLightShader.bindVector2(Vec2(rand() % 256, rand() % 256), "randomOffset");
-    globalLightShader.bindVector2(screenSize, "screenSize");
-    globalLightShader.bindTexture(positionTex, "positionTex", 0);
-    globalLightShader.bindTexture(normalTex, "normalTex", 1);
-    globalLightShader.bindTexture(blueNoiseTex, "blueNoiseTex", 2);
+    lightingShader.use();
+    lightingShader.bindInteger(camera.isDirty, "cameraMoved");
+    lightingShader.bindInteger(worldChunkLen, "worldChunkLen");
+    lightingShader.bindVector3(localCamPos, "eyePos");
+    lightingShader.bindVector3(normalise(Vec3(0.4, 0.8, 0.7)), "skyLightDir");
+    lightingShader.bindVector3(Vec3(1.0, 1.0, 1.0), "skyLightColor"); 
+    lightingShader.bindVector2(Vec2(rand() % 256, rand() % 256), "randomOffset");
+    lightingShader.bindVector2(screenSize, "screenSize");
+    lightingShader.bindTexture(positionTex, "positionTex", 0);
+    lightingShader.bindTexture(normalTex, "normalTex", 1);
+    lightingShader.bindTexture(voxelTex, "voxelTex", 2);
+    lightingShader.bindTexture(blueNoiseTex, "blueNoiseTex", 3);
+    lightingShader.bindMaterials(materials);
 
     glBindVertexArray(screenVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -48,28 +52,17 @@ void Renderer::render() {
     denoiser.use();
     denoiser.bindInteger(camera.isDirty, "cameraMoved");
     denoiser.bindVector2(screenSize, "screenSize");
-    denoiser.bindTexture(globalLightTextures[nextBuffer], "currFrame", 0);
-    denoiser.bindTexture(globalLightTextures[currentBuffer], "prevFrame", 1);
+    denoiser.bindVector3(worldBasePos, "worldBasePos");
+    denoiser.bindMatrix(prevViewProj, "prevViewProj");
+    denoiser.bindTexture(lightingTextures[nextBuffer], "currFrame", 0);
+    denoiser.bindTexture(lightingTextures[currentBuffer], "prevFrame", 1);
     denoiser.bindTexture(positionTex, "positionTex", 2);
     denoiser.bindTexture(normalTex, "normalTex", 3);
+    denoiser.bindTexture(voxelTex, "voxelTex", 4);
 
     glBindVertexArray(screenVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
-    
-    specialLightShader.use();
-    specialLightShader.bindInteger(worldChunkLen, "worldChunkLen");
-    specialLightShader.bindMatrix(matViewProj, "matViewProj");
-    specialLightShader.bindVector3(localCamPos, "eyePos");
-    specialLightShader.bindVector3(normalise(Vec3(-0.4, -0.8, -0.7)), "skyLightDir");
-    specialLightShader.bindVector3(Vec3(1.0, 1.0, 1.0), "skyLightColor"); 
-    specialLightShader.bindVector2(screenSize, "screenSize");
-    specialLightShader.bindTexture(positionTex, "positionTex", 0);
-    specialLightShader.bindTexture(normalTex, "normalTex", 1);
-    specialLightShader.bindTexture(globalLightTextures[nextBuffer], "globalLightTex", 2);
 
-    glBindVertexArray(screenVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    
     // Switch to the main buffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -77,17 +70,16 @@ void Renderer::render() {
     // Render to screen
     assembler.use();
     assembler.bindVector2(screenSize, "screenSize");
-    assembler.bindTexture(globalLightTextures[nextBuffer], "globalLightTex", 0);
-    assembler.bindTexture(specialLightTextures[nextBuffer], "specialLightTex", 1);
-    assembler.bindTexture(colorTex, "colorTex", 2);
-    
-    // Render the screen
+    assembler.bindTexture(lightingTextures[nextBuffer], "lightingTex", 0);
+    assembler.bindTexture(voxelTex, "voxelTex", 1);
+    assembler.bindMaterials(materials);
+
     glBindVertexArray(screenVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 
     // Render the center marker
-    monoColorShader.use();
-    monoColorShader.bindVector3(Vec3(1, 0, 0), "color"); // Red marker
+    colorShader.use();
+    colorShader.bindVector3(Vec3(1, 0, 0), "color"); // Red marker
     glBindVertexArray(markerVAO);
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4); // Draw the quad
 
@@ -96,9 +88,6 @@ void Renderer::render() {
 
     // Update camera flag
     camera.isDirty = false;
-
-    // increase frame count
-    frame++;
 
     // Unbind
     glBindVertexArray(0);
@@ -168,22 +157,14 @@ void Renderer::loadLightBuffers() {
         glGenFramebuffers(1, &frameBuffers[i]);
         glBindFramebuffer(GL_FRAMEBUFFER, frameBuffers[i]);
 
-        glGenTextures(1, &globalLightTextures[i]);
-        glBindTexture(GL_TEXTURE_2D, globalLightTextures[i]);
+        glGenTextures(1, &lightingTextures[i]);
+        glBindTexture(GL_TEXTURE_2D, lightingTextures[i]);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenWidth, screenHeight, 0, GL_RGBA, GL_FLOAT, nullptr);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, globalLightTextures[i], 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, lightingTextures[i], 0);
 
-        glGenTextures(1, &specialLightTextures[i]);
-        glBindTexture(GL_TEXTURE_2D, specialLightTextures[i]);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenWidth, screenHeight, 0, GL_RGBA, GL_FLOAT, nullptr);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, specialLightTextures[i], 0);
-
-        GLuint attachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-        glDrawBuffers(2, attachments);
+        glDrawBuffers(1, &frameBuffers[i]);
 
         if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
             std::cout << "Buffer not complete" << std::endl;
@@ -210,12 +191,12 @@ void Renderer::loadGBuffer() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, normalTex, 0);
 
-    glGenTextures(1, &colorTex);
-    glBindTexture(GL_TEXTURE_2D, colorTex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, screenWidth, screenHeight, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glGenTextures(1, &voxelTex);
+    glBindTexture(GL_TEXTURE_2D, voxelTex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, screenWidth, screenHeight, 0, GL_RED_INTEGER, GL_UNSIGNED_INT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, colorTex, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, voxelTex, 0);
 
     GLuint attachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
     glDrawBuffers(3, attachments);
@@ -224,7 +205,7 @@ void Renderer::loadGBuffer() {
         std::cout << "G-buffer not complete" << std::endl;
     }
 
-    glBindBuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 // Setup VAO/VBO for the screen quad

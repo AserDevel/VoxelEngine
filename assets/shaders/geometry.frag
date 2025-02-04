@@ -5,7 +5,7 @@
 // Outputs
 layout(location = 0) out vec3 position;
 layout(location = 1) out vec3 normal;
-layout(location = 2) out vec3 color;
+layout(location = 2) out uint voxel;
 
 // Camera uniforms
 uniform mat4 invViewProj;
@@ -28,17 +28,16 @@ void main() {
     vec4 worldPos = invViewProj * ndcPos;
     worldPos /= worldPos.w; // Perform perspective divide
 
-    // Compute ray direction: from camera origin (0,0,0) to the world position
     vec3 rayDir = normalize(worldPos.xyz);
 
-    RayData cameraRay = traceRay(rayOrigin, rayDir, 256);
+    RayData cameraRay = traceRay(rayOrigin, rayDir, 512);
     if (cameraRay.hit) {
         position = cameraRay.hitPos;
         normal = cameraRay.normal;
-        color = vec3(0.3, 1.0, 0.3);
+        voxel = cameraRay.voxel;
     } else {
         position = vec3(0.0);
         normal = vec3(0.0);
-        color = vec3(0.0);
+        voxel = 0;
     }
 }

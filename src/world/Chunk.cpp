@@ -52,7 +52,7 @@ bool Chunk::removeVoxel(const Vec3& localPosition) {
     if (!voxel.isSolid()) {
         return false;
     }
-    voxel = 0;
+    voxel = ID_AIR;
     return true;
 }
 

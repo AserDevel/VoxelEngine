@@ -58,6 +58,19 @@ void Camera::updateCameraVectors() {
     newFront.x = cosf(yaw) * cosf(pitch);
     newFront.y = sinf(pitch);
     newFront.z = sinf(yaw) * cosf(pitch);
+
+    // adjust to prevent floating point errors
+    const float epsilon = 0.001;
+    if (abs(newFront.x) < epsilon) {
+        newFront.x = newFront.x < 0 ? -epsilon : epsilon;
+    }
+    if (abs(newFront.y) < epsilon) {
+        newFront.y = newFront.y < 0 ? -epsilon : epsilon;
+    }
+    if (abs(newFront.z) < epsilon) {
+        newFront.z = newFront.z < 0 ? -epsilon : epsilon;
+    }
+
     front = normalise(newFront);
 
     // Recalculate right and up vectors

@@ -3,8 +3,11 @@
 #include "utilities/standard.h"
 
 struct Material {
-    Vec4 color;
-    bool isTransparent;
+    Vec4 color = Vec4(0.0);
+    float specularity = 0.0;
+
+    Material(Vec4 color = Vec4(0.0), float specularity = 0.0)
+        : color(color), specularity(specularity) {}
 };
 
 enum MaterialID {
@@ -21,17 +24,17 @@ enum MaterialID {
     ID_LEAVES,
 };
 
-const Material air = { Vec4(1.0, 1.0, 1.0, 0.0), true};
-const Material stone = { Vec4(0.5, 0.5, 0.5, 1.0), false };
-const Material metal = { Vec4(0.5, 0.5, 0.5, 1.0), false };
-const Material wood = { Vec4(0.4, 0.3, 0.1, 1.0), false };
-const Material ice = { Vec4(0.5, 0.5, 1.0, 1.0), false };
-const Material dirt = { Vec4(0.6, 0.4, 0.2, 1.0), false };
-const Material grass = { Vec4(0.2, 0.9, 0.2, 1.0), false };
-const Material snow = { Vec4(1.0, 1.0, 1.0, 1.0), false };
-const Material sand = { Vec4(1.0, 1.0, 0.0, 1.0), false };
-const Material water = { Vec4(0.0, 0.0, 1.0, 0.5), true };
-const Material leaves = { Vec4(0.2, 0.6, 0.2, 1.0), false };
+const Material air = Material();
+const Material stone = Material(Vec4(0.5, 0.5, 0.5, 1.0));
+const Material metal = Material(Vec4(0.7, 0.7, 0.7, 1.0), 0.9);
+const Material wood = Material(Vec4(0.4, 0.3, 0.1, 1.0));
+const Material ice = Material(Vec4(0.5, 0.5, 1.0, 1.0));
+const Material dirt = Material(Vec4(0.6, 0.4, 0.2, 1.0));
+const Material grass = Material(Vec4(0.2, 0.9, 0.2, 1.0));
+const Material snow = Material(Vec4(1.0, 1.0, 1.0, 1.0));
+const Material sand = Material(Vec4(1.0, 1.0, 0.0, 1.0));
+const Material water = Material(Vec4(0.2, 0.2, 1.0, 0.5), 1.0);
+const Material leaves = Material(Vec4(0.2, 0.6, 0.2, 1.0));
 
 static Material materials[256] = {
     air,

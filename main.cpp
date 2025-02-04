@@ -96,7 +96,7 @@ int main(int argc, char* argv[]) {
     }
     
     Camera camera = Camera(
-        Vec3(5.0f, 10.0, 5.0f),  // Position
+        Vec3(5.0f, 140.0, 5.0f),  // Position
         Vec3(0.0f, 1.0f, 0.0f),    // Up vector
         0,                         // Yaw
         0,                         // Pitch
@@ -141,7 +141,7 @@ int main(int argc, char* argv[]) {
                     Vec3 voxelPos;
                     Vec3 normal;
                     if (worldManager.worldRayDetection(startPoint, endPoint, voxelPos, normal)) {
-                        worldManager.addVoxel(voxelPos + normal, 1);
+                        worldManager.addVoxel(voxelPos + normal, ID_METAL);
                     }
                 }
                 break;

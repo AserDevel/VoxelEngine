@@ -93,7 +93,7 @@ float ChunkGenerator::generateHeight(const Vec2& worldPosition2D) {
 
     float height = 0.5 + 0.2 * perlin.octaveNoise(x, z, 5, 0.5, 0.002);
 
-    /*
+    
     float mountainThreshold = 0.02f;
     float mountainBlending = 0.5 * (height + mountainThreshold - 0.6) / mountainThreshold;
     if (mountainBlending >= 0.0) {
@@ -101,7 +101,7 @@ float ChunkGenerator::generateHeight(const Vec2& worldPosition2D) {
         mountainHeight = height + height * mountainHeight;
         height = mix(height, mountainHeight, mountainBlending);
     }
-    */
+
     return height;
 }
 
@@ -140,25 +140,24 @@ void ChunkGenerator::generateChunk(Chunk* chunk) {
             float warmBlendFactor = 0.5 * (temp + blendingThreshold - 0.66) / blendingThreshold;
             float coldBlendFactor = 0.5 * (temp + blendingThreshold - 0.33) / blendingThreshold;
             
-            int worldHeight = height * 255 - 120;
+            int worldHeight = height * 255;
             for (int y = 0; y < chunkSize; y++) {     
                 int wpy = chunk->worldPosition.y + y;
                 Voxel newVoxel = 0;
-                if (wpy > worldHeight) break;
-                newVoxel.setMatID(ID_STONE);
+                if (wpy > std::max(worldHeight, waterHeight)) break;
                 chunk->isEmpty = false;
-                /*
+                
                 if (biome == OCEAN) {
                     if (wpy > worldHeight) {
-                        newVoxel = IDX_WATER;
+                        newVoxel.setMatID(ID_WATER);
                     } else if (wpy >= worldHeight - 1) {
-                        newVoxel = IDX_SAND;
+                        newVoxel.setMatID(ID_SAND);
                     } else {
-                        newVoxel = IDX_STONE;
+                        newVoxel.setMatID(ID_STONE);
                     }
                 } else {
                     newVoxel = generateVoxel(Vec3(wpx, wpy, wpz), biome, worldHeight);
-                    /*
+                    
                     if (mountainBlendFactor >= 0.5 && mountainBlendFactor <= 1.0) {
                         BiomeType blendBiome = getBiome(height - blendingThreshold, humid, temp);
                         Voxel blendVoxel = generateVoxel(Vec3(x, y, z), blendBiome, worldHeight);
@@ -169,8 +168,7 @@ void ChunkGenerator::generateChunk(Chunk* chunk) {
                         newVoxel = mountainBlendFactor > uniformDist(rng) ? blendVoxel : newVoxel;
                     }
                 }
-                */
-        
+                
                 chunk->addVoxel(Vec3(x, y, z), newVoxel);
             }
         }

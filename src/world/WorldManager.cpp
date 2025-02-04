@@ -102,7 +102,7 @@ bool WorldManager::worldRayDetection(const Vec3& startPoint, const Vec3& endPoin
     normal = Vec3(0, 0, 0);
     while (tEntry <= rayLength) {
         auto voxel = getVoxel(voxelPos);
-        if (!voxel.isTransparent()) {
+        if (voxel.isSolid()) {
             return true;
         }
 

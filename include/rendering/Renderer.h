@@ -10,8 +10,9 @@ class Renderer {
 private:
     static const int chunkSize = CHUNKSIZE;
 
-    int frame = 0;
     int screenWidth, screenHeight;
+
+    Mat4x4 viewProj;
     
     // World buffers
     GLuint voxelBuffer;
@@ -19,10 +20,10 @@ private:
 
     // Geometry buffer
     GLuint gBuffer;
-    GLuint positionTex, normalTex, colorTex;
+    GLuint positionTex, normalTex, voxelTex;
 
     // Light buffers
-    GLuint frameBuffers[2], globalLightTextures[2], specialLightTextures[2];
+    GLuint frameBuffers[2], lightingTextures[2];
     GLuint currentBuffer = 0;
 
     GLuint blueNoiseTex;
@@ -33,10 +34,9 @@ private:
     Vec3 lightDir;
     Vec3 lightColor;
 
-    Shader monoColorShader = Shader("assets/shaders/basic2D.vert", "assets/shaders/monoColor.frag");
+    Shader colorShader = Shader("assets/shaders/basic2D.vert", "assets/shaders/color.frag");
     Shader geometryShader = Shader("assets/shaders/basic3D.vert", "assets/shaders/geometry.frag");
-    Shader globalLightShader = Shader("assets/shaders/basic3D.vert", "assets/shaders/globalLight.frag");
-    Shader specialLightShader = Shader("assets/shaders/basic3D.vert", "assets/shaders/specialLight.frag");
+    Shader lightingShader = Shader("assets/shaders/basic3D.vert", "assets/shaders/lighting.frag");
     Shader denoiser = Shader("assets/shaders/basic3D.vert", "assets/shaders/denoiser.frag");
     Shader assembler = Shader("assets/shaders/basic3D.vert", "assets/shaders/assembler.frag");
 

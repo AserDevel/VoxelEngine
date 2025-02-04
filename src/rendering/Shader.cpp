@@ -96,6 +96,7 @@ void Shader::bindMaterials(Material materials[256]) {
     for (size_t i = 0; i < 256; ++i) {
         std::string materialBase = "materials[" + std::to_string(i) + "]";
         glUniform4fv(glGetUniformLocation(programID, (materialBase + ".color").c_str()), 1, &materials[i].color.x);
+        glUniform1f(glGetUniformLocation(programID, (materialBase + ".specularity").c_str()), materials[i].specularity);
     }
 
     GLenum error = glGetError();
@@ -272,7 +273,7 @@ Shader::Shader(const char* vertexShaderFile, const char* fragmentShaderFile) {
 
     GLuint compiledProgram = compileShaderProgram(vertexShaderSource.c_str(), fragmentShaderSource.c_str());
     if (compiledProgram == 0) {
-        std::cerr << "Shader compilation or linking failed!" << std::endl;
+        std::cerr << "Shader compilation or linking failed with: " << vertexShaderFile << " and " << fragmentShaderFile << std::endl;
     }
 
     this->programID = compiledProgram;

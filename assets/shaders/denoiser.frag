@@ -1,13 +1,16 @@
 #version 460 core
 
-layout(location = 0) out vec4 globalLight;
+layout(location = 0) out vec4 lighting;
 
 uniform bool cameraMoved;
 uniform vec2 screenSize;
+uniform vec3 worldBasePos;
+uniform mat4 prevViewProj;
 uniform sampler2D currFrame;
 uniform sampler2D prevFrame;
 uniform sampler2D positionTex;
 uniform sampler2D normalTex;
+uniform isampler2D voxelTex;
 
 /*
 vec2 computeReprojected(vec3 position) {
@@ -34,14 +37,16 @@ void main() {
     vec2 uv = gl_FragCoord.xy / screenSize;
     vec3 position = texture(positionTex, uv).xyz;
     vec3 normal = texture(normalTex, uv).xyz;
-
-    float mixFactor = 0.95;
-    if (cameraMoved) {
-        mixFactor = 0.2;
-    }
+    uint voxel = texture(voxelTex, uv).r;
 
     vec3 currLight = texture(currFrame, uv).rgb;
     vec3 prevLight = texture(prevFrame, uv).rgb;
+
+    float mixFactor = 0.0;
+    if (!cameraMoved) {
+        float variance = length(currLight - prevLight);
+        mixFactor = clamp(variance * 10, 0.8, 0.9); // Adapt mix factor based on noise
+    }
     
     vec3 light = mix(currLight, prevLight, mixFactor);
     float totalWeight = 1.0;
@@ -53,13 +58,17 @@ void main() {
             vec2 neighbourUV = (gl_FragCoord.xy + vec2(x, y)) / screenSize;
             vec3 neighbourPosition = texture(positionTex, neighbourUV).xyz;
             vec3 neighbourNormal = texture(normalTex, neighbourUV).xyz;
-            if (normal == neighbourNormal && length(neighbourPosition - position) < 0.1) {
+            uint neighbourVoxel = texture(voxelTex, neighbourUV).r;
+            float distance = length(neighbourPosition - position);
+            if (voxel == neighbourVoxel &&
+                normal == neighbourNormal && 
+                distance < 1.0) {
                 // sample current and previous frame
                 vec3 neighbourCurrLight = texture(currFrame, neighbourUV).rgb;
                 vec3 neighbourPrevLight = texture(prevFrame, neighbourUV).rgb;
 
                 // compute weight based on distance from the original pixel
-                float weight = 1.0 / (abs(x) + abs(y));
+                float weight = 1.0 - distance;
 
                 // add to sum, mix current and previous frame
                 light += weight * mix(neighbourCurrLight, neighbourPrevLight, mixFactor);
@@ -70,5 +79,5 @@ void main() {
     
     light /= totalWeight;
 
-    globalLight = vec4(light, 1.0);
+    lighting = vec4(light, 1.0);
 }

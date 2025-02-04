@@ -37,7 +37,7 @@ struct Voxel {
     }
 
     inline bool isTransparent() {
-        return materials[getMatID()].isTransparent;
+        return materials[getMatID()].color.a != 1.0;
     }
 };
 

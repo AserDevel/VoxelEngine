@@ -10,31 +10,18 @@ uniform vec3 skyLightDir;
 uniform vec3 skyLightColor;
 
 // Frame uniforms
-uniform mat4 matViewProj;
 uniform vec3 eyePos;
 uniform vec2 screenSize;
 uniform sampler2D positionTex;
 uniform sampler2D normalTex;
-uniform sampler2D globalLightTex;
+uniform isampler2D voxelTex;
 
-vec2 computeProjectionCoords(vec3 position) {
-    // World position from current frame
-    vec4 worldPos = vec4(position, 1.0);
+struct Material {
+    vec4 color;
+    float specularity;
+};
 
-    // Convert back to previous clip space
-    vec4 prevClipPos = matViewProj * worldPos;
-
-    // Perform perspective divide to normalize coordinates
-    prevClipPos /= prevClipPos.w;
-
-    // Convert NDC [-1, 1] back to UV [0, 1]
-    vec2 uvProjected = 0.5 + 0.5 * prevClipPos.xy;
-
-    // Clamp to valid UV range
-    uvProjected = clamp(uvProjected, vec2(0.0), vec2(1.0));
-
-    return uvProjected;
-}
+uniform Material[256] materials;
 
 vec3 computeReflection(vec3 dir, vec3 normal) {
     return normalize(dir - 2.0 * dot(dir, normal) * normal);
@@ -44,14 +31,25 @@ void main() {
     vec2 uv = gl_FragCoord.xy / screenSize;
     vec3 position = texture(positionTex, uv).xyz;
     vec3 normal = texture(normalTex, uv).xyz;
+    uint voxel = texture(voxelTex, uv).r;
+
+    // handle no hit rays
+    if (position == vec3(0.0)) {
+        specialLight = vec4(0.0);
+        return;
+    }
 
     vec3 finalLight = vec3(0.0);
-    vec3 reflectionDir = computeReflection(normalize(position - eyePos), normal);
-    RayData reflectionRay = traceRay(position, reflectionDir, 32);
-    if (reflectionRay.hit) {
-        vec2 uv = computeProjectionCoords(reflectionRay.hitPos);
-        vec3 baseColor = vec3(0.3, 1.0, 0.3);
-        finalLight = baseColor * texture(globalLightTex, uv).rgb;
+
+    if (materials[voxel].specularity != 0.0) {
+        vec3 reflectionDir = computeReflection(normalize(position - eyePos), normal);
+        RayData reflectionRay = traceRay(position, reflectionDir, 64);
+        if (reflectionRay.hit) {
+            vec3 reflectedColor = materials[reflectionRay.voxel].color.rgb;
+            finalLight = 0.2 * reflectedColor;
+        } else {
+            finalLight = 0.2 * skyLightColor;
+        }
     }
 
     specialLight = vec4(finalLight, 1.0);
