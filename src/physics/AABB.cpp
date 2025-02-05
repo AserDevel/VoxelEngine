@@ -14,6 +14,11 @@ bool AABBpointIn(const Vec3& point, const AABB& box) {
            (point.z >= box.min.z && point.z <= box.max.z);
 }
 
+bool AABBpointIn2D(const Vec2& point, const AABB2D& box) {
+    return (point.x >= box.min.x && point.x <= box.max.x) &&
+           (point.y >= box.min.y && point.y <= box.max.y);
+}
+
 bool AABBrayDetection(const Vec3& point, const Vec3& direction, const AABB& box, Vec3& collisionNormal, float& tEntry, float& tExit) {
     float inf = std::numeric_limits<float>::infinity();
     float tMinX = -inf, tMinY = -inf, tMinZ = -inf;

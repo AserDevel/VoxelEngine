@@ -6,6 +6,7 @@
 #include "unordered_set"
 
 class Shader {
+private:
     GLuint programID;
 
     std::string readFile(const std::string filePath);

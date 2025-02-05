@@ -4,6 +4,9 @@
 #include "utilities/standard.h"
 
 class Camera {
+private:
+    void updateCameraVectors();
+    
 public:
     Vec3 position;       // Camera position
     Vec3 front;          // Direction the camera is facing
@@ -38,8 +41,5 @@ public:
     void processKeyboardInput(const std::string& direction, float deltaTime, float speed);
 
     void processMouseInput(float xOffset, float yOffset, float sensitivity = 0.1f);
-
-private:
-    void updateCameraVectors();
 };
 

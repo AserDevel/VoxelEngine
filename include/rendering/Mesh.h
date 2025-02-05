@@ -28,6 +28,13 @@ extern const GLuint cubeIndicies[6];        // Normal cube
 extern const GLuint cubeIndiciesFlipped[6]; // Flipped diagonal
 
 class Mesh {
+private:
+    GLuint VAO; // Vertex Array Object (loading attribute pointers)
+    GLuint VBO; // Vertex Buffer Object (loading vertices)
+    GLuint IBO; // Index Buffer Object (loading indicies to vertices)
+
+    void cleanup(); 
+    
 public:
     std::vector<Vertex> vertices;
     std::vector<GLuint> indices;
@@ -42,13 +49,6 @@ public:
     
     void loadToGPU();
 
-    void draw();
-
-private:
-    GLuint VAO; // Vertex Array Object (loading attribute pointers)
-    GLuint VBO; // Vertex Buffer Object (loading vertices)
-    GLuint IBO; // Index Buffer Object (loading indicies to vertices)
-
-    void cleanup();    
+    void draw();   
 };
 

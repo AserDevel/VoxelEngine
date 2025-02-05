@@ -4,7 +4,7 @@
 int Chunk::positionToIndex(const Vec3& localPosition) const {
     int idx = localPosition.x + (localPosition.y * size) + (localPosition.z * size * size);
     if (idx < 0 || idx >= (size * size * size)) {
-        std::cerr << "subchunk does not contain the given local position: "; localPosition.print();
+        std::cerr << "Chunk does not contain the given local position: "; localPosition.print();
         return -1;
     } 
     
@@ -39,25 +39,25 @@ void Chunk::forEachVoxel(std::function<void(const Vec3&, Voxel&)> callback) {
 
 // voxel manipulation with bounds and dirty flag handling
 bool Chunk::addVoxel(const Vec3& localPosition, const Voxel& newVoxel) {
-    Voxel& voxel = getVoxel(localPosition);
-    if (voxel.isSolid() || newVoxel.getMatID() == ID_AIR) {
+    Voxel* voxel = getVoxel(localPosition);
+    if (!voxel || voxel->isSolid()) {
         return false;
     }    
-    voxel = newVoxel;
+    *voxel = newVoxel;
     return true;
 }
 
 bool Chunk::removeVoxel(const Vec3& localPosition) {
-    Voxel& voxel = getVoxel(localPosition);
-    if (!voxel.isSolid()) {
+    Voxel* voxel = getVoxel(localPosition);
+    if (!voxel || !voxel->isSolid()) {
         return false;
     }
-    voxel = ID_AIR;
+    *voxel = ID_AIR;
     return true;
 }
 
-Voxel& Chunk::getVoxel(const Vec3& localPosition) {
-    return voxels[positionToIndex(localPosition)];
+Voxel* Chunk::getVoxel(const Vec3& localPosition) {
+    return &voxels[positionToIndex(localPosition)];
 }
 
 // bounds checking

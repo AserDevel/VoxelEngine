@@ -8,8 +8,6 @@
 
 class Renderer {
 private:
-    static const int chunkSize = CHUNKSIZE;
-
     int screenWidth, screenHeight;
 
     Mat4x4 viewProj;
@@ -43,23 +41,6 @@ private:
     Camera& camera;
     WorldManager& worldManager;
 
-public:
-    Renderer(WorldManager& worldManager, Camera& camera)
-        : worldManager(worldManager), camera(camera) {
-        initGLSettings();
-        loadScreenQuad();
-        loadMarker();
-        loadWorldBuffers();
-        loadLightBuffers();
-        loadGBuffer();
-        loadBlueNoiseTexture();
-    }
-
-    ~Renderer() {}
-
-    void render();
-
-private:
     void initGLSettings();
 
     void loadScreenQuad();
@@ -75,4 +56,20 @@ private:
     void loadGBuffer();
 
     void loadBlueNoiseTexture();
+
+public:
+    Renderer(WorldManager& worldManager, Camera& camera)
+        : worldManager(worldManager), camera(camera) {
+        initGLSettings();
+        loadScreenQuad();
+        loadMarker();
+        loadWorldBuffers();
+        loadLightBuffers();
+        loadGBuffer();
+        loadBlueNoiseTexture();
+    }
+
+    ~Renderer() {}
+
+    void render();
 };

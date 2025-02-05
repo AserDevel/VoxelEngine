@@ -6,7 +6,6 @@
 class Player {
 private:
     Vec3 position;
-    Quat rotation;
     Camera camera;
 
 public:

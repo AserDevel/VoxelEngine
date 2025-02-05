@@ -6,7 +6,7 @@ void Renderer::render() {
     updateWorldBuffers();
     int worldChunkLen = worldManager.updateDistance * 2 + 1;
     Vec2 screenSize(screenWidth, screenHeight);
-    Vec3 worldBasePos = worldManager.activeChunks[0]->worldPosition;
+    Vec3 worldBasePos = worldManager.chunks[0]->worldPosition;
     Vec3 localCamPos = camera.position - worldBasePos;
     Mat4x4 prevViewProj = viewProj;
     viewProj = camera.getMatViewProj();
@@ -105,19 +105,19 @@ void Renderer::initGLSettings() {
 }
 
 void Renderer::updateWorldBuffers() {
+    int numVoxels = worldManager.chunks[0]->numVoxels;
     int numChunks = worldManager.numChunks;
-    int numVoxels = chunkSize * chunkSize * chunkSize;
 
     // update voxel data
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, voxelBuffer);
     int chunkOffsets[numChunks];
     for (int i = 0; i < numChunks; i++) {
-        auto chunk = worldManager.activeChunks[i];
-        if (chunk && chunk->isDirty) {
+        auto chunk = worldManager.chunks[i];
+        if (chunk && chunk->isDirty && chunk->state != PENDING) {
             glBufferSubData(GL_SHADER_STORAGE_BUFFER, chunk->bufferOffset * sizeof(Voxel), numVoxels * sizeof(Voxel), chunk->voxels);
             chunk->isDirty = false;
         }
-        if (!chunk || chunk->isEmpty) {
+        if (!chunk || chunk->isEmpty || chunk->state == PENDING) {
             chunkOffsets[i] = -1;
         } else {
             chunkOffsets[i] = chunk->bufferOffset;
@@ -134,7 +134,7 @@ void Renderer::updateWorldBuffers() {
 
 // Load world buffers based on current settings on update distance/number of chunks
 void Renderer::loadWorldBuffers() {
-    int numVoxels = chunkSize * chunkSize * chunkSize;
+    int numVoxels = worldManager.chunks[0]->numVoxels;
     int numChunks = worldManager.numChunks;
     int voxelDataSize = numChunks * numVoxels * sizeof(Voxel);
     

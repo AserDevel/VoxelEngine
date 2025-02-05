@@ -7,6 +7,31 @@
 class WorldManager;
 
 class ChunkGenerator {
+private:
+    const int waterHeight = 112;
+    
+    WorldManager& worldManager;
+    
+    PerlinNoise perlin;
+    std::mt19937 rng;
+
+    static const int chunkSize = CHUNKSIZE;
+
+    // Generates a biome from 2D world position and height
+    BiomeType getBiome(float height, float humid, float temp);
+
+    // Generates height at the 2D world position
+    float generateHeight(const Vec2& worldPosition2D);
+
+    // Generates a voxel based on position, biome and height
+    Voxel generateVoxel(const Vec3& worldPosition, BiomeType biome, int worldHeight);
+
+    // Generates a tree
+    void generateTree(const Vec3& worldPosition);
+
+    // Generates caves
+    void generateChunk3D(Chunk* chunk);
+
 public:
     ChunkGenerator(WorldManager& worldManager) 
         : worldManager(worldManager) {
@@ -27,28 +52,6 @@ public:
     void generateChunk(Chunk* chunk);
 
     void generateFeatures(Chunk* chunk);
-    
-private:
-    int updateDistance = 4;
 
-    const int waterHeight = 112;
-    
-    WorldManager& worldManager;
-    
-    PerlinNoise perlin;
-    std::mt19937 rng;
-
-    static const int chunkSize = CHUNKSIZE;
-
-    BiomeType getBiome(float height, float humid, float temp);
-
-    float generateHeight(const Vec2& worldPosition2D);
-
-    float generateWorldHeight(const Vec2& worldPosition2D, BiomeType biome, float height);
-
-    Voxel generateVoxel(const Vec3& worldPositiom, BiomeType biome, int worldHeight);
-
-    void generateTree(const Vec3& worldPosition);
-
-    void generateChunk3D(Chunk* chunk);
+    void generateChunkColumn(ChunkColumn* column);
 };
