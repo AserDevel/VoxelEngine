@@ -23,7 +23,8 @@ public:
 
     bool isDirty;
 
-    // Constructor
+    // Constructors
+    Camera() = default;
     Camera(Vec3 startPosition, Vec3 startUp, float startYaw, float startPitch, 
            float startFOV, float startAspect, float startNear, float startFar)
         : position(startPosition), worldUp(startUp), yaw(startYaw), pitch(startPitch),

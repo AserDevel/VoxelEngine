@@ -9,26 +9,30 @@ class WorldManager;
 
 struct Shape {
     Vec3 position;
+    Vec3 dimensions;
     Vec3 velocity;
     Vec3 acceleration;
 
-    const AABB dimensions;
-
-    Shape(const Vec3& position, const AABB dimensions)
+    Shape() = default;
+    Shape(const Vec3& position, const Vec3& dimensions)
         : position(position), dimensions(dimensions) {}
 };
 
 class PhysicsEngine {
 private:
-    const WorldManager& worldManager;
+    WorldManager& worldManager;
 
     std::vector<Shape*> shapes;
 
-    void updateShape(Shape* shape);
+    void updateShape(Shape* shape, float deltaTime);
 
 public:
-    PhysicsEngine(const WorldManager& worldManager)
+    PhysicsEngine(WorldManager& worldManager)
         : worldManager(worldManager) {} 
 
-    void update();
+    void update(float deltaTime);
+
+    void addShape(Shape* shape);
+
+    void removeShape(Shape* shape);
 };

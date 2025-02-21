@@ -6,7 +6,7 @@ void Renderer::render() {
     updateWorldBuffers();
     int worldChunkLen = worldManager.updateDistance * 2 + 1;
     Vec2 screenSize(screenWidth, screenHeight);
-    Vec3 worldBasePos = worldManager.chunks[0]->worldPosition;
+    Vec3 worldBasePos = worldManager.worldBasePos;
     Vec3 localCamPos = camera.position - worldBasePos;
     Mat4x4 prevViewProj = viewProj;
     viewProj = camera.getMatViewProj();
@@ -113,11 +113,11 @@ void Renderer::updateWorldBuffers() {
     int chunkOffsets[numChunks];
     for (int i = 0; i < numChunks; i++) {
         auto chunk = worldManager.chunks[i];
-        if (chunk && chunk->isDirty && chunk->state != PENDING) {
+        if (chunk && chunk->isDirty && chunk->state == DONE) {
             glBufferSubData(GL_SHADER_STORAGE_BUFFER, chunk->bufferOffset * sizeof(Voxel), numVoxels * sizeof(Voxel), chunk->voxels);
             chunk->isDirty = false;
         }
-        if (!chunk || chunk->isEmpty || chunk->state == PENDING) {
+        if (!chunk || chunk->isEmpty || chunk->state != DONE) {
             chunkOffsets[i] = -1;
         } else {
             chunkOffsets[i] = chunk->bufferOffset;

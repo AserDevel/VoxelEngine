@@ -210,7 +210,13 @@ void ChunkGenerator::generateChunk3D(Chunk* chunk) {
         for (double y = wp.y; y < wp.y + chunkSize; y++) {
             for (double z = wp.z; z < wp.z + chunkSize; z++) {
                 double val = perlin.noise(x / chunkSize, y / chunkSize, z / chunkSize);
-                if (val < -0.4) worldManager.removeVoxel(Vec3(x, y, z)); 
+                if (val < -0.4) {
+                    Vec3 wp = Vec3(x, y, z);
+                    auto voxel = worldManager.getVoxel(wp);
+                    if (voxel && !voxel->isTransparent()) {
+                        worldManager.removeVoxel(wp); 
+                    }
+                }
             }
         }
     }

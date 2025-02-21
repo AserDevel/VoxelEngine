@@ -32,7 +32,7 @@ struct RayData {
 };
 
 // Trace ray through the world using origin and direction
-RayData traceRay(vec3 rayOrigin, vec3 rayDir, uint maxSteps) {
+RayData traceRay(vec3 rayOrigin, vec3 rayDir, uint maxSteps, bool ignoreTransparent) {
     uint worldLen = worldChunkLen * 16;
     vec3 step = sign(rayDir);
     vec3 voxelPos = floor(rayOrigin);
@@ -47,7 +47,7 @@ RayData traceRay(vec3 rayOrigin, vec3 rayDir, uint maxSteps) {
     }
     for (int i = 0; i < maxSteps; i++) {
         uint voxel = positionToVoxel(voxelPos);
-        if (voxel != 0) {
+        if (voxel != 0 && !(ignoreTransparent && voxel == 9)) { // 9 is water
             float epsilon = 0.0001;
             tMax -= tDelta;
             vec3 hitPos = rayOrigin;

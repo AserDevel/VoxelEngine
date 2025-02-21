@@ -58,3 +58,4 @@ bool AABBrayDetection(const Vec3& point, const Vec3& direction, const AABB& box,
     
     return (tEntry <= tExit) && (tExit >= 0.0f);
 }
+

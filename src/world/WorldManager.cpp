@@ -36,6 +36,7 @@ void WorldManager::updateChunks(Vec3 worldCenter) {
     Vec3 centerChunkPos = worldToChunkPosition(worldCenter);
     AABB activeBox = {Vec3(centerChunkPos - Vec3(updateDistance)), Vec3(centerChunkPos + Vec3(updateDistance))};
     AABB2D activeBox2D = {activeBox.min.xz(), activeBox.max.xz()};
+    worldBasePos = activeBox.min * chunkSize;
 
     // cleanup out of range chunks
     std::vector<Vec3> chunksToRemove;

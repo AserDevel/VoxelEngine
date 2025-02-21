@@ -30,7 +30,7 @@ void main() {
 
     vec3 rayDir = normalize(worldPos.xyz);
 
-    RayData cameraRay = traceRay(rayOrigin, rayDir, 512);
+    RayData cameraRay = traceRay(rayOrigin, rayDir, 512, false);
     if (cameraRay.hit) {
         position = cameraRay.hitPos;
         normal = cameraRay.normal;

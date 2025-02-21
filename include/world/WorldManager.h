@@ -27,6 +27,7 @@ private:
 public:
     int updateDistance = 4;
     int numChunks;
+    Vec3 worldBasePos;
 
     Chunk** chunks; //flatened array where chunks are mapped with relative chunk positions 
     

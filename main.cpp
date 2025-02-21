@@ -6,6 +6,8 @@
 #include "rendering/Renderer.h"
 #include "world/ChunkGenerator.h"
 #include "physics/AABB.h"
+#include "physics/PhysicsEngine.h"
+#include "gameplay/Player.h"
 
 // Window dimensions
 int WINDOW_SIZE = 600;
@@ -95,6 +97,7 @@ int main(int argc, char* argv[]) {
         return -1;
     }
     
+    /*
     Camera camera = Camera(
         Vec3(5.0f, 140.0, 5.0f),  // Position
         Vec3(0.0f, 1.0f, 0.0f),    // Up vector
@@ -105,11 +108,16 @@ int main(int argc, char* argv[]) {
         1.0f,                      // Near plane
         5000.0f                    // Far plane
     );
+    */
 
     ThreadManager threadManager(4);
     WorldManager worldManager(threadManager, 8);
-    Renderer renderer(worldManager, camera);
+    Player player(Vec3(5.0, 140.0, 5.0), worldManager);
+    Renderer renderer(worldManager, player.camera);
 
+    PhysicsEngine physicsEngine(worldManager);
+    physicsEngine.addShape(&player.shape);
+    
     float lastFrameTime = SDL_GetTicks() / 1000.0f;
     isRunning = true;
     while (isRunning) {
@@ -123,40 +131,32 @@ int main(int argc, char* argv[]) {
             case SDL_QUIT:
                 isRunning = false;
                 break;
+            case SDL_KEYDOWN:
+                if (event.key.keysym.sym == SDLK_ESCAPE) {
+                    isRunning = false;
+                } else {
+                    player.handleEvent(event);
+                } 
+                break;
             case SDL_MOUSEMOTION:
-                camera.processMouseInput(event.motion.xrel, event.motion.yrel, 0.02f);
+                player.camera.processMouseInput(event.motion.xrel, event.motion.yrel, 0.02f);
                 break;
             case SDL_MOUSEBUTTONDOWN:
-                if (event.button.button == SDL_BUTTON_LEFT) {                    
-                    Vec3 startPoint = camera.position;
-                    Vec3 endPoint = camera.position - camera.front * 4;
-                    Vec3 voxelPos;
-                    Vec3 normal;
-                    if (worldManager.worldRayDetection(startPoint, endPoint, voxelPos, normal)) {
-                        worldManager.removeVoxel(voxelPos);
-                    }
-                } else if (event.button.button == SDL_BUTTON_RIGHT) {
-                    Vec3 startPoint = camera.position;
-                    Vec3 endPoint = camera.position - camera.front * 4;
-                    Vec3 voxelPos;
-                    Vec3 normal;
-                    if (worldManager.worldRayDetection(startPoint, endPoint, voxelPos, normal)) {
-                        worldManager.addVoxel(voxelPos + normal, ID_METAL);
-                    }
-                }
+                player.handleEvent(event);
                 break;
             default:
                 break;
             }
         }
-        
-        processKeyStates(deltaTime, camera);
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glDepthRange(0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
-        worldManager.updateChunks(camera.position);
+        player.processInput();
+        physicsEngine.update(deltaTime);
+        player.update();
+        worldManager.updateChunks(player.camera.position);
         renderer.render();
 
         SDL_GL_SwapWindow(window);

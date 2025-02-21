@@ -50,7 +50,7 @@ vec3 computeGlobalIllumination(vec3 origin, vec3 normal, int samples) {
 
     for (int i = 0; i < samples; i++) {
         vec3 dir = randomSphereSample(normal);
-        RayData ray = traceRay(origin, dir, 16);
+        RayData ray = traceRay(origin, dir, 16, false);
         if (!ray.hit) {
             accumulatedLight += skyLightColor * max(dot(dir, skyLightDir), 0.5);
         } else {
@@ -77,7 +77,7 @@ float computeSoftShadow(vec3 rayOrigin, int numSamples) {
         sampleDir = normalize(skyLightDir + jitterAmount * sampleDir);
 
         // Use sample for soft shadows
-        RayData ray = traceRay(rayOrigin, sampleDir, 64);
+        RayData ray = traceRay(rayOrigin, sampleDir, 64, false);
         if (ray.hit) {
             occlusion += 1.0;
         } 
@@ -99,7 +99,7 @@ vec3 computeReflection(vec3 rayOrigin, vec3 reflectionDir, float specularity, in
         sampleDir = normalize(reflectionDir + jitterAmount * sampleDir);
 
         // Use sample for reflection
-        RayData ray = traceRay(rayOrigin, sampleDir, 64);
+        RayData ray = traceRay(rayOrigin, sampleDir, 64, false);
         if (ray.hit) {
             // add reflection from material color;
             reflection += materials[ray.voxel].color.rgb;
@@ -150,12 +150,17 @@ void main() {
     }
 
     // handle transparency
-    //vec4 color = materials[voxel].color;
-    //if (color.a < 1.0) {
-    //    vec3 rayDir = normalize(position - localCamPos);
-    //    RayData ray = traceRay(position, rayDir, 64);
-    //    if (ray.hit)
-    //}
+    /*
+    vec4 color = materials[voxel].color;
+    if (color.a < 1.0) {
+        vec3 rayDir = normalize(position - eyePos);
+        RayData ray = traceRay(position, rayDir, 64, true);
+        if (ray.hit) {
+            float mixer = 1.0 - color.a * (length(ray.hitPos - position) / 64.0);
+            light = mix(light, materials[ray.voxel].color.rgb, mixer);
+        }
+    }
+    */
 
     lighting = vec4(light, 1.0);
 }
