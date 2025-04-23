@@ -13,3 +13,5 @@ Clone the repository, make sure you have the dependencies installed and run insi
 
 **Demo**
 ![image](./demo/Screenshot_20250423_175648.png)
+![image](./demo/Screenshot_20250423_175542-1.png)
+![image](./demo/Screenshot_20250423_175840.png)
