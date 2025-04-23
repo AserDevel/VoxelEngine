@@ -4,6 +4,7 @@
 #include "Biomes.h"
 #include "rendering/Mesh.h"
 #include <unordered_set>
+#include <functional>
 
 #define CHUNKSIZE 16
 
