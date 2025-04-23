@@ -11,7 +11,7 @@ SDL2, SLD2 image and OpenGL (using glad as extention loader)
 
 Clone the repository, make sure you have the dependencies installed and run inside the root repo using "make run"
 
-**Demo**
+**Demo:**
 ![image](./demo/Screenshot_20250423_175648.png)
 ![image](./demo/Screenshot_20250423_175542-1.png)
 ![image](./demo/Screenshot_20250423_175840.png)
